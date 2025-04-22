@@ -10,11 +10,21 @@ BLACK = (0, 0, 0)
 WHITE = (255, 255, 255)
 RED = (169, 0, 0)
 YELLOW = (255, 255, 0)
-
+MAGENTA = (255, 0 ,255)
 # Dimensions
 SCREEN_WIDTH = 640
 SCREEN_HEIGHT = 480
 state = 'histurn'
+
+pygame.init()
+pygame.mixer.init(frequency=44100, size=-16, channels=2, buffer=2048)
+pygame.font.init()
+#Files
+SLAM = pygame.mixer.Sound('Sound/Slam.ogg')
+MEGALOVANIA = pygame.mixer.Sound('Sound/MEGALOVANIA.ogg')
+MEGALOVANIA.set_volume(0.6)
+TEXT = pygame.mixer.Sound('Sound/BattleText.ogg')
+DING = pygame.mixer.Sound('Sound/Ding.ogg')
 
 class Soul(pygame.sprite.Sprite):
     def __init__(self):
@@ -28,13 +38,17 @@ class Soul(pygame.sprite.Sprite):
         self.health = 92
         self.karma = 0
         self.rect = pygame.Rect(SCREEN_WIDTH/2-8, SCREEN_HEIGHT/3*2, 16, 16)
-        self.redimg = pygame.image.load('Red.png').convert_alpha()
-        self.blueimg = pygame.image.load('Blue.png').convert_alpha()
+        self.redimg = pygame.image.load('Images/Red.png').convert_alpha()
+        self.blueimg = pygame.image.load('Images/Blue.png').convert_alpha()
         self.image = self.redimg
         self.transparent_img = pygame.Surface([16,16], pygame.SRCALPHA)
         self.transparent_img.fill((0, 0, 0, 0))
         self.accel = 0
         self.velocity = 0
+        self.height = 0
+        self.olddirection = self.direction
+        self.shake = 0
+        self.impacting = False
     def update(self, battle_box):
         if state == 'histurn':
             if self.soulmode == 'RED':
@@ -52,15 +66,23 @@ class Soul(pygame.sprite.Sprite):
 
             elif self.soulmode == 'BLUE':
                 self.image = self.blueimg
-                if not self.right == self.left:
+                if (self.direction == 1 or self.direction == 3) and not self.right == self.left:
                     if self.right:
                         self.rect.x += 5
                     else:
                         self.rect.x -= 5
-                if self.up:
-                    self.accel = 0
-                    self.velocity = -6
+                if (self.direction == 2 or self.direction == 4) and not self.up == self.down:
+                    if self.down:
+                        self.rect.y += 5
+                    else:
+                        self.rect.y -= 5
+
+                if ((self.up and self.direction == 1) or (self.left and self.direction == 2) or (self.down and self.direction == 3) or (self.right and self.direction == 4)) and self.height <= 10:
+                        self.accel = 0
+                        self.velocity = -6
+                        self.height += 1
                 else:
+                    self.height = 100000
                     if self.velocity <= -1:
                         self.accel = 0.5
                         self.velocity = -1
@@ -71,7 +93,14 @@ class Soul(pygame.sprite.Sprite):
                     else:
                         self.accel = 0
                 self.velocity += self.accel
-                self.rect.y += self.velocity
+                if self.direction == 1:
+                    self.rect.y += self.velocity
+                elif self.direction == 2:
+                    self.rect.x += self.velocity
+                elif self.direction == 3:
+                    self.rect.y -= self.velocity
+                elif self.direction == 4:
+                    self.rect.x -= self.velocity
 
             if self.direction == 1:
                 self.image = rotate_center(self.image, 0)
@@ -84,14 +113,38 @@ class Soul(pygame.sprite.Sprite):
             #detect battle box
             if self.rect.left < battle_box.rect.left + 5:
                 self.rect.left = battle_box.rect.left + 5
+                if self.direction == 4:
+                    self.velocity = 0
             if self.rect.right > battle_box.rect.right - 5:
                 self.rect.right = battle_box.rect.right - 5
+                if self.direction == 2:
+                    self.velocity = 0
             if self.rect.top < battle_box.rect.top + 5:
                 self.rect.top = battle_box.rect.top + 5
+                if self.direction == 3:
+                    self.velocity = 0
             if self.rect.bottom > battle_box.rect.bottom - 5:
                 self.rect.bottom = battle_box.rect.bottom - 5
-                if self.soulmode == 'BLUE':
+                if self.direction == 1:
                     self.velocity = 0
+
+            if not self.olddirection == self.direction:
+                self.olddirection = self.direction
+                self.velocity = 20
+                self.height = 100000
+                self.impacting = True
+            if self.shake >= 1:
+                self.impacting = False
+                if self.shake == 1:
+                    pygame.mixer.Sound.play(SLAM)
+                    self.height = 0
+                if self.shake == 5:
+                    self.shake = -1
+                self.shake += 1
+            if self.velocity == 0:
+                self.height = 0
+                if self.impacting:
+                    self.shake = 1
         else:
             self.image = self.transparent_img
 
@@ -130,42 +183,115 @@ class BattleBox(pygame.sprite.Sprite):
                     self.rect.width == self.target_rect.width and
                     self.rect.height == self.target_rect.height):
                 self.animating = False
+
+
+class DialogBox:
+    def __init__(self, font, width, height, x, y):
+        self.font = font
+        self.rect = pygame.Rect(x, y, width, height)
+        self.text = ""
+        self.display_text = ""
+        self.text_index = 0
+        self.text_speed = 1
+        self.active = False
+        self.completed = False
+        self.sound_channel = pygame.mixer.Channel(1)
+    def set_text(self, text):
+        self.text = text
+        self.display_text = ""
+        self.text_index = 0
+        self.active = True
+        self.completed = False
+
+    def update(self):
+        if not self.active:
+            return
+
+        if self.text_index < len(self.text):
+            self.display_text += self.text[self.text_index]
+            if not self.text[self.text_index].isspace():
+                    self.sound_channel.stop()
+                    self.sound_channel.play(TEXT)
+            while self.text[self.text_index].isspace():
+                self.text_index += 1
+                self.display_text += self.text[self.text_index]
+            self.text_index += 1
+        else:
+            self.completed = True
+
+    def draw(self, screen):
+        if not self.active:
+            return
+        words = self.display_text.split(' ')
+        x, y = self.rect.x + 10, self.rect.y + 10
+        line_height = self.font.get_height()
+        max_width = self.rect.width - 20
+
+        current_line = ""
+        for word in words:
+            test_line = current_line + word + " "
+            test_width = self.font.size(test_line)[0]
+
+            if test_width > max_width:
+                draw_text(screen, current_line, self.font, WHITE, x, y, True)
+                y += line_height
+                current_line = word + " "
+            else:
+                current_line = test_line
+
+        draw_text(screen, current_line, self.font, WHITE, x, y, True)
+
 def rotate_center(image, angle):
     rotated_image = pygame.transform.rotate(image, angle)
     return rotated_image
 def load_font(font_path, size):
     font = pygame.font.Font(font_path, size)
     return font
-def draw_text(screen, text, font, color, x, y):
-    """Draw text on the screen with the specified alignment."""
+info_font = load_font('Mars.ttf', 24)
+HPKR_font = load_font('8-BIT WONDER.TTF', 12)
+sans_font = load_font('pixel-comic-sans-undertale-sans-font.ttf', 12)
+determination_mono = load_font('DeterminationMonoWebRegular-Z5oq.ttf', 30)
+def draw_text(screen, text, font, color, x, y, instant=True):
     text_surface = font.render(text, True, color)
     text_rect = text_surface.get_rect()
     text_rect.topleft = (x, y)
     screen.blit(text_surface, text_rect)
-    return text_rect
+def screenshake(intensity):
+    if intensity == 0:
+        return (0, 0)
+    else:
+        x = random.randint(-intensity, intensity)
+        y = random.randint(-intensity, intensity)
+        return (x, y)
 def main():
     global state
-    pygame.init()
-    pygame.mixer.init()
-    pygame.font.init()
-    info_font = load_font('Mars.ttf', 24)
-    screen = pygame.display.set_mode([SCREEN_WIDTH, SCREEN_HEIGHT])
+    truescreen = pygame.display.set_mode([SCREEN_WIDTH, SCREEN_HEIGHT])
+    screen = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
     pygame.display.set_caption("UNDERTALE")
     soul = Soul()
     clock = pygame.time.Clock()
     done = False
+    turnno = 0
     active_sprite_list = pygame.sprite.Group()
     active_sprite_list.add(soul)
     battle_box = BattleBox(200, 200)
     soul.rect.center = battle_box.rect.center
+    #pygame.mixer.Sound.play(MEGALOVANIA)
+    dialog_box = DialogBox(determination_mono, 575, 140, 40, 255)
+    oldstate = state
+    timer = 0
+    lines = []
+    with open('dialogue.txt') as file:
+        for line in file:
+            lines.append(line.rstrip())
     while not done:
+        screen.fill(BLACK)
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 done = True
             if state == 'yourturn':
-                battle_box.resize(575, 140)
-                screen.fill(BLACK)
-            elif state == 'histurn':
+                """controls"""
+            if state == 'histurn':
                 if event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_UP:
                         soul.up = True
@@ -196,24 +322,69 @@ def main():
                     soul.direction = 4
                 elif event.key == pygame.K_5:
                     soul.soulmode = 'BLUE'
+                    DING.play()
                 elif event.key == pygame.K_6:
                     soul.soulmode = 'RED'
+                    DING.play()
                 elif event.key == pygame.K_7:
                     if state == 'histurn':
                         state = 'yourturn'
+                        timer = 0
                     else:
                         state = 'histurn'
-
-        screen.fill(BLACK)
+        if state == 'yourturn':
+            battle_box.resize(575, 140)
+            if timer == 20:
+                if turnno == 1:
+                    dialog_box.set_text(lines[0])
+                elif turnno == 4:
+                    dialog_box.set_text(lines[2])
+                elif turnno == 9:
+                    dialog_box.set_text(lines[3])
+                elif turnno == 12:
+                    dialog_box.set_text(lines[4])
+                elif turnno == 22:
+                    dialog_box.set_text(lines[9])
+                elif turnno == 23:
+                    dialog_box.set_text(lines[10])
+                elif 30 <= soul.karma < 40:
+                    dialog_box.set_text(lines[14])
+                elif 20 <= soul.karma < 30:
+                    dialog_box.set_text(lines[13])
+                elif 10 <= soul.karma < 20:
+                    dialog_box.set_text(lines[12])
+                elif 0 < soul.karma < 10:
+                    dialog_box.set_text(lines[11])
+                elif turnno < 12:
+                    dialog_box.set_text(lines[1])
+                else:
+                    dialog_box.set_text(lines[random.randint(5, 8)])
+            elif timer > 20:  # After setting text, update and draw it
+                dialog_box.update()
+                dialog_box.draw(screen)
+            timer += 1
         battle_box.update()
         active_sprite_list.update(battle_box)
         battle_box.draw(screen)
         active_sprite_list.draw(screen)
+        #healthbar.draw(screen)
         
-        draw_text(screen, "CHARA", info_font, WHITE, 32, 400)
-        draw_text(screen, "LV 19", info_font, WHITE, 135, 400)
+        draw_text(screen, "CHARA", info_font, WHITE, 32, 400, True)
+        draw_text(screen, "LV 19", info_font, WHITE, 135, 400, True)
+        draw_text(screen, "HP", HPKR_font, WHITE, 240, 403, True)
+        draw_text(screen, "KR", HPKR_font, WHITE, 370, 403, True)
+        if soul.karma > 0:
+            draw_text(screen, str(soul.health)+" / 92", info_font, MAGENTA, 410, 400, True)
+        else:
+            draw_text(screen, str(soul.health) + " / 92", info_font, WHITE, 410, 400, True)
+        if not oldstate == state:
+            oldstate = state
+            if state == 'yourturn':
+                turnno += 1 #only if attack add later
+                if turnno == 1:
+                    MEGALOVANIA.play(-1)
 
-
+        truescreen.blit(screen, screenshake(soul.shake))
         clock.tick(30)
         pygame.display.flip()
     pygame.quit()
