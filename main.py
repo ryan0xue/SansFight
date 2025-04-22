@@ -26,6 +26,13 @@ MEGALOVANIA.set_volume(0.6)
 TEXT = pygame.mixer.Sound('Sound/BattleText.ogg')
 DING = pygame.mixer.Sound('Sound/Ding.ogg')
 
+class Health(pygame.sprite.Sprite):
+    def __init__(self, health, karma):
+        pygame.sprite.Sprite.__init__(self)
+        for i in range(92):
+            if
+
+
 class Soul(pygame.sprite.Sprite):
     def __init__(self):
         pygame.sprite.Sprite.__init__(self)
@@ -81,6 +88,7 @@ class Soul(pygame.sprite.Sprite):
                         self.accel = 0
                         self.velocity = -6
                         self.height += 1
+
                 else:
                     self.height = 100000
                     if self.velocity <= -1:
@@ -175,7 +183,7 @@ class BattleBox(pygame.sprite.Sprite):
             elif self.rect.height > self.target_rect.height:
                 self.rect.height -= min(self.speed, self.rect.height - self.target_rect.height)
             self.rect.x = (SCREEN_WIDTH - self.rect.width) / 2
-            self.rect.y = SCREEN_HEIGHT / 2 + 150 - self.rect.height
+            self.rect.y = SCREEN_HEIGHT / 2 + 127 - self.rect.height
 
             # Check if animation is complete
             if (self.rect.x == self.target_rect.x and
@@ -272,12 +280,12 @@ def main():
     clock = pygame.time.Clock()
     done = False
     turnno = 0
+    health = Health(soul.health, soul.karma)
     active_sprite_list = pygame.sprite.Group()
     active_sprite_list.add(soul)
     battle_box = BattleBox(200, 200)
     soul.rect.center = battle_box.rect.center
-    #pygame.mixer.Sound.play(MEGALOVANIA)
-    dialog_box = DialogBox(determination_mono, 575, 140, 40, 255)
+    dialog_box = DialogBox(determination_mono, 545, 132, 57, 245)
     oldstate = state
     timer = 0
     lines = []
@@ -310,7 +318,6 @@ def main():
                         soul.left = False
                     elif event.key == pygame.K_RIGHT:
                         soul.right = False
-                battle_box.resize(200, 200)
             if event.type == pygame.KEYDOWN: #temprary
                 if event.key == pygame.K_1:
                     soul.direction = 1
@@ -333,7 +340,7 @@ def main():
                     else:
                         state = 'histurn'
         if state == 'yourturn':
-            battle_box.resize(575, 140)
+            battle_box.resize(545, 132)
             if timer == 20:
                 if turnno == 1:
                     dialog_box.set_text(lines[0])
@@ -363,27 +370,32 @@ def main():
                 dialog_box.update()
                 dialog_box.draw(screen)
             timer += 1
+        elif state == 'histurn':
+            battle_box.resize(200, 200)
         battle_box.update()
         active_sprite_list.update(battle_box)
         battle_box.draw(screen)
         active_sprite_list.draw(screen)
         #healthbar.draw(screen)
         
-        draw_text(screen, "CHARA", info_font, WHITE, 32, 400, True)
-        draw_text(screen, "LV 19", info_font, WHITE, 135, 400, True)
-        draw_text(screen, "HP", HPKR_font, WHITE, 240, 403, True)
-        draw_text(screen, "KR", HPKR_font, WHITE, 370, 403, True)
+        draw_text(screen, "CHARA", info_font, WHITE, 47.5, 375, True)
+        draw_text(screen, "LV 19", info_font, WHITE, 145, 375, True)
+        draw_text(screen, "HP", HPKR_font, WHITE, 230, 378, True)
+        draw_text(screen, "KR", HPKR_font, WHITE, 370, 378, True)
         if soul.karma > 0:
-            draw_text(screen, str(soul.health)+" / 92", info_font, MAGENTA, 410, 400, True)
+            draw_text(screen, str(soul.health)+" / 92", info_font, MAGENTA, 410, 375, True)
         else:
-            draw_text(screen, str(soul.health) + " / 92", info_font, WHITE, 410, 400, True)
+            draw_text(screen, str(soul.health) + " / 92", info_font, WHITE, 410, 375, True)
         if not oldstate == state:
             oldstate = state
             if state == 'yourturn':
                 turnno += 1 #only if attack add later
                 if turnno == 1:
                     MEGALOVANIA.play(-1)
-
+                elif turnno == 13:
+                    MEGALOVANIA.pause()
+        health.update(soul.health, soul.karma)
+        health.draw(screen)
         truescreen.blit(screen, screenshake(soul.shake))
         clock.tick(30)
         pygame.display.flip()
