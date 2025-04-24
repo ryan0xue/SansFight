@@ -8,7 +8,7 @@ import pygame, random
 # Colors
 BLACK = (0, 0, 0)
 WHITE = (255, 255, 255)
-RED = (169, 0, 0)
+RED = (210, 0, 0)
 YELLOW = (255, 255, 0)
 MAGENTA = (255, 0 ,255)
 # Dimensions
@@ -22,17 +22,57 @@ pygame.font.init()
 #Files
 SLAM = pygame.mixer.Sound('Sound/Slam.ogg')
 MEGALOVANIA = pygame.mixer.Sound('Sound/MEGALOVANIA.ogg')
+CHOICE = pygame.mixer.Sound('Sound/The_Choice.ogg')
 MEGALOVANIA.set_volume(0.6)
 TEXT = pygame.mixer.Sound('Sound/BattleText.ogg')
 DING = pygame.mixer.Sound('Sound/Ding.ogg')
 
+class Bar(pygame.sprite.Sprite):
+    def __init__(self, color):
+        super().__init__()
+        self.image = pygame.Surface([1, 21])
+        self.image.fill(color)
+        self.rect = pygame.draw.rect(self.image, color, self.image.get_rect())
+
 class Health(pygame.sprite.Sprite):
-    def __init__(self, health, karma):
+    def __init__(self):
         pygame.sprite.Sprite.__init__(self)
-        for i in range(92):
-            if
-
-
+        self.health = 92
+        self.karma = 0
+        self.empty = 0
+        self.x = 180
+        self.y = 375
+        self.barlist = pygame.sprite.Group()
+    def update(self, health, karma):
+        self.health = health
+        self.karma = karma
+        if health+karma > 0:
+            self.empty = 92 - health - karma
+        else:
+            self.empty = 92
+    def draw(self, screen):
+        # health bar is 110x21
+        # starting coords is 260, 375
+        self.x = 265
+        self.y = 375
+        for i in range(self.health):
+            bar = Bar(YELLOW)
+            bar.rect.x = self.x
+            self.x += 1
+            bar.rect.y = self.y
+            screen.blit(bar.image, bar.rect)
+        for i in range(self.karma):
+            bar = Bar(MAGENTA)
+            bar.rect.x = self.x
+            self.x += 1
+            bar.rect.y = self.y
+            screen.blit(bar.image, bar.rect)
+        for i in range(self.empty):
+            bar = Bar(RED)
+            bar.rect.x = self.x
+            self.x += 1
+            bar.rect.y = self.y
+            screen.blit(bar.image, bar.rect)
 class Soul(pygame.sprite.Sprite):
     def __init__(self):
         pygame.sprite.Sprite.__init__(self)
@@ -42,8 +82,9 @@ class Soul(pygame.sprite.Sprite):
         self.up = False
         self.down = False
         self.direction = 1
-        self.health = 92
         self.karma = 0
+        self.healthyhealth = 92
+        self.health = self.healthyhealth + self.karma
         self.rect = pygame.Rect(SCREEN_WIDTH/2-8, SCREEN_HEIGHT/3*2, 16, 16)
         self.redimg = pygame.image.load('Images/Red.png').convert_alpha()
         self.blueimg = pygame.image.load('Images/Blue.png').convert_alpha()
@@ -56,6 +97,8 @@ class Soul(pygame.sprite.Sprite):
         self.olddirection = self.direction
         self.shake = 0
         self.impacting = False
+        self.hurting = False
+        self.karmaframes = 0
     def update(self, battle_box):
         if state == 'histurn':
             if self.soulmode == 'RED':
@@ -88,7 +131,6 @@ class Soul(pygame.sprite.Sprite):
                         self.accel = 0
                         self.velocity = -6
                         self.height += 1
-
                 else:
                     self.height = 100000
                     if self.velocity <= -1:
@@ -100,6 +142,7 @@ class Soul(pygame.sprite.Sprite):
                         self.accel = 0.6
                     else:
                         self.accel = 0
+
                 self.velocity += self.accel
                 if self.direction == 1:
                     self.rect.y += self.velocity
@@ -155,6 +198,39 @@ class Soul(pygame.sprite.Sprite):
                     self.shake = 1
         else:
             self.image = self.transparent_img
+        if self.karma > 40:
+            self.karma = 40
+        elif self.karma == 40:
+            self.karma -= 1
+            self.karmaframes = 0
+        elif 30 <= self.karma < 40:
+            if self.karmaframes >= 2:
+                self.karma -= 1
+                self.karmaframes = 0
+        elif 20 <= self.karma < 30:
+            if self.karmaframes >= 5:
+                self.karma -= 1
+                self.karmaframes = 0
+        elif 10 <= self.karma < 20:
+            if self.karmaframes >= 15:
+                self.karma -= 1
+                self.karmaframes = 0
+        elif 1 <= self.karma < 10:
+            if self.karmaframes >= 30:
+                self.karma -= 1
+                self.karmaframes = 0
+        if self.karma > 0:
+            self.karmaframes += 1
+        if self.health > 1:
+            if self.hurting:
+                if self.healthyhealth == 1:
+                    self.karma -= 1
+                else:
+                    self.karma += 5 #for now
+                    self.healthyhealth = self.health - self.karma -1
+        else:
+            self.karma = 0
+        self.health = self.healthyhealth + self.karma
 
 class BattleBox(pygame.sprite.Sprite):
     def __init__(self, width, height):
@@ -280,7 +356,7 @@ def main():
     clock = pygame.time.Clock()
     done = False
     turnno = 0
-    health = Health(soul.health, soul.karma)
+    health = Health()
     active_sprite_list = pygame.sprite.Group()
     active_sprite_list.add(soul)
     battle_box = BattleBox(200, 200)
@@ -339,6 +415,11 @@ def main():
                         timer = 0
                     else:
                         state = 'histurn'
+                elif event.key == pygame.K_SPACE:
+                        soul.hurting = True
+            if event.type == pygame.KEYUP:
+                if event.key == pygame.K_SPACE:
+                    soul.hurting = False
         if state == 'yourturn':
             battle_box.resize(545, 132)
             if timer == 20:
@@ -394,7 +475,11 @@ def main():
                     MEGALOVANIA.play(-1)
                 elif turnno == 13:
                     MEGALOVANIA.pause()
-        health.update(soul.health, soul.karma)
+                    CHOICE.play(-1)
+                elif turnno == 14:
+                    CHOICE.stop()
+                    MEGALOVANIA.unpause()
+        health.update(soul.healthyhealth, soul.karma)
         health.draw(screen)
         truescreen.blit(screen, screenshake(soul.shake))
         clock.tick(30)
