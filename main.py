@@ -3,13 +3,13 @@ __version__="April 17 2025"
 __author__ = "Ryan Xue"
 
 
-import pygame, random
+import pygame, random, math
 
 # Colors
 BLACK = (0, 0, 0)
 WHITE = (255, 255, 255)
 RED = (210, 0, 0)
-YELLOW = (255, 255, 0)
+YELLOW = (255,252,4)
 MAGENTA = (255, 0 ,255)
 # Dimensions
 SCREEN_WIDTH = 640
@@ -26,22 +26,66 @@ CHOICE = pygame.mixer.Sound('Sound/The_Choice.ogg')
 MEGALOVANIA.set_volume(0.6)
 TEXT = pygame.mixer.Sound('Sound/BattleText.ogg')
 DING = pygame.mixer.Sound('Sound/Ding.ogg')
+HURT = pygame.mixer.Sound('Sound/PlayerDamaged.ogg')
+CURSOR = pygame.mixer.Sound('Sound/MenuCursor.ogg')
+SELECT = pygame.mixer.Sound('Sound/MenuSelect.ogg')
+
+class Buttons(pygame.sprite.Sprite):
+    def __init__(self):
+        pygame.sprite.Sprite.__init__(self)
+        self.choice = 1
+        self.x = 35
+        self.y = 430
+        self.fight = pygame.image.load('Images/fight.png').convert_alpha()
+        self.act = pygame.image.load('Images/act.png').convert_alpha()
+        self.item = pygame.image.load('Images/item.png').convert_alpha()
+        self.mercy = pygame.image.load('Images/mercy.png').convert_alpha()
+        self.sfight = pygame.image.load('Images/sfight.png').convert_alpha()
+        self.sact = pygame.image.load('Images/sact.png').convert_alpha()
+        self.sitem = pygame.image.load('Images/sitem.png').convert_alpha()
+        self.smercy = pygame.image.load('Images/smercy.png').convert_alpha()
+        self.images = [self.fight, self.act, self.item, self.mercy]
+        self.image = None
+    def update(self, choosing):
+        if self.choice == 5:
+            self.choice = 1
+        elif self.choice == 0:
+            self.choice = 4
+        if choosing:
+            if self.choice == 1:
+                self.images = [self.sfight, self.act, self.item, self.mercy]
+            elif self.choice == 2:
+                self.images = [self.fight, self.sact, self.item, self.mercy]
+            elif self.choice == 3:
+                self.images = [self.fight, self.act, self.sitem, self.mercy]
+            elif self.choice == 4:
+                self.images = [self.fight, self.act, self.item, self.smercy]
+        else:
+            self.images = [self.fight, self.act, self.item, self.mercy]
+    def draw(self, screen):
+        self.x = 35
+        self.y = 430
+        for i in self.images:
+            screen.blit(i, (self.x, self.y))
+            self.x += 155
 
 class Bar(pygame.sprite.Sprite):
-    def __init__(self, color):
-        super().__init__()
-        self.image = pygame.Surface([1, 21])
+    def __init__(self, color, length):
+        pygame.sprite.Sprite.__init__(self)
+        try:
+            self.image = pygame.Surface([math.ceil(110*length/92), 21])
+        except:
+            self.image = pygame.Surface([1, 21])
         self.image.fill(color)
         self.rect = pygame.draw.rect(self.image, color, self.image.get_rect())
-
 class Health(pygame.sprite.Sprite):
     def __init__(self):
         pygame.sprite.Sprite.__init__(self)
         self.health = 92
         self.karma = 0
         self.empty = 0
-        self.x = 180
-        self.y = 375
+        self.x = 255
+        self.y = 400
         self.barlist = pygame.sprite.Group()
     def update(self, health, karma):
         self.health = health
@@ -52,27 +96,30 @@ class Health(pygame.sprite.Sprite):
             self.empty = 92
     def draw(self, screen):
         # health bar is 110x21
-        # starting coords is 260, 375
-        self.x = 265
-        self.y = 375
-        for i in range(self.health):
-            bar = Bar(YELLOW)
-            bar.rect.x = self.x
-            self.x += 1
-            bar.rect.y = self.y
-            screen.blit(bar.image, bar.rect)
-        for i in range(self.karma):
-            bar = Bar(MAGENTA)
-            bar.rect.x = self.x
-            self.x += 1
-            bar.rect.y = self.y
-            screen.blit(bar.image, bar.rect)
-        for i in range(self.empty):
-            bar = Bar(RED)
-            bar.rect.x = self.x
-            self.x += 1
-            bar.rect.y = self.y
-            screen.blit(bar.image, bar.rect)
+        self.x = 255
+        self.y = 400
+        bar = Bar(YELLOW, self.health)
+        bar.rect.x = self.x
+        self.x += math.ceil(self.health*110/92)
+        bar.rect.y = self.y
+        screen.blit(bar.image, bar.rect)
+
+        bar = Bar(MAGENTA, self.karma)
+        bar.rect.x = self.x
+        self.x += math.ceil(self.karma*110/92)
+        bar.rect.y = self.y
+        screen.blit(bar.image, bar.rect)
+
+        bar = Bar(RED, self.empty)
+        bar.rect.x = self.x
+        bar.rect.y = self.y
+        screen.blit(bar.image, bar.rect)
+
+        bar = Bar(BLACK, 5)
+        self.x = 365
+        bar.rect.x = self.x
+        bar.rect.y = self.y
+        screen.blit(bar.image, bar.rect)
 class Soul(pygame.sprite.Sprite):
     def __init__(self):
         pygame.sprite.Sprite.__init__(self)
@@ -103,6 +150,9 @@ class Soul(pygame.sprite.Sprite):
         if state == 'histurn':
             if self.soulmode == 'RED':
                 self.image = self.redimg
+                self.direction = 1
+                self.height = 0
+                self.impacting = False
                 if not self.down == self.up:
                     if self.down:
                         self.rect.y += 5
@@ -187,7 +237,7 @@ class Soul(pygame.sprite.Sprite):
             if self.shake >= 1:
                 self.impacting = False
                 if self.shake == 1:
-                    pygame.mixer.Sound.play(SLAM)
+                    SLAM.play()
                     self.height = 0
                 if self.shake == 5:
                     self.shake = -1
@@ -223,6 +273,8 @@ class Soul(pygame.sprite.Sprite):
             self.karmaframes += 1
         if self.health > 1:
             if self.hurting:
+                HURT.stop()
+                HURT.play()
                 if self.healthyhealth == 1:
                     self.karma -= 1
                 else:
@@ -231,11 +283,10 @@ class Soul(pygame.sprite.Sprite):
         else:
             self.karma = 0
         self.health = self.healthyhealth + self.karma
-
 class BattleBox(pygame.sprite.Sprite):
     def __init__(self, width, height):
         pygame.sprite.Sprite.__init__(self)
-        self.rect = pygame.Rect((SCREEN_WIDTH-width)/2, SCREEN_HEIGHT/2+150-height, width, height)
+        self.rect = pygame.Rect((640-width)/2, 390-height, width, height)
         self.target_rect = None
         self.speed = 25
         self.animating = False
@@ -243,7 +294,7 @@ class BattleBox(pygame.sprite.Sprite):
     def draw(self, screen):
         pygame.draw.rect(screen, WHITE, self.rect, 5)
     def resize(self, new_width, new_height):
-        self.target_rect = pygame.Rect((SCREEN_WIDTH-new_width)/2, SCREEN_HEIGHT/2+150-new_height, new_width, new_height)
+        self.target_rect = pygame.Rect((640-new_width)/2, 390-new_height, new_width, new_height)
         self.animating = True
     def update(self):
         if self.target_rect and self.animating:
@@ -258,8 +309,8 @@ class BattleBox(pygame.sprite.Sprite):
                 self.rect.height += min(self.speed, self.target_rect.height - self.rect.height)
             elif self.rect.height > self.target_rect.height:
                 self.rect.height -= min(self.speed, self.rect.height - self.target_rect.height)
-            self.rect.x = (SCREEN_WIDTH - self.rect.width) / 2
-            self.rect.y = SCREEN_HEIGHT / 2 + 127 - self.rect.height
+            self.rect.x = (640-self.rect.width)/2
+            self.rect.y = 390 - self.rect.height
 
             # Check if animation is complete
             if (self.rect.x == self.target_rect.x and
@@ -267,8 +318,6 @@ class BattleBox(pygame.sprite.Sprite):
                     self.rect.width == self.target_rect.width and
                     self.rect.height == self.target_rect.height):
                 self.animating = False
-
-
 class DialogBox:
     def __init__(self, font, width, height, x, y):
         self.font = font
@@ -324,7 +373,6 @@ class DialogBox:
                 current_line = test_line
 
         draw_text(screen, current_line, self.font, WHITE, x, y, True)
-
 def rotate_center(image, angle):
     rotated_image = pygame.transform.rotate(image, angle)
     return rotated_image
@@ -334,7 +382,7 @@ def load_font(font_path, size):
 info_font = load_font('Mars.ttf', 24)
 HPKR_font = load_font('8-BIT WONDER.TTF', 12)
 sans_font = load_font('pixel-comic-sans-undertale-sans-font.ttf', 12)
-determination_mono = load_font('DeterminationMonoWebRegular-Z5oq.ttf', 30)
+determination_mono = load_font('DeterminationMonoWebRegular-Z5oq.ttf', 32)
 def draw_text(screen, text, font, color, x, y, instant=True):
     text_surface = font.render(text, True, color)
     text_rect = text_surface.get_rect()
@@ -347,12 +395,14 @@ def screenshake(intensity):
         x = random.randint(-intensity, intensity)
         y = random.randint(-intensity, intensity)
         return (x, y)
+
 def main():
     global state
     truescreen = pygame.display.set_mode([SCREEN_WIDTH, SCREEN_HEIGHT])
     screen = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
     pygame.display.set_caption("UNDERTALE")
     soul = Soul()
+    buttons = Buttons()
     clock = pygame.time.Clock()
     done = False
     turnno = 0
@@ -361,8 +411,9 @@ def main():
     active_sprite_list.add(soul)
     battle_box = BattleBox(200, 200)
     soul.rect.center = battle_box.rect.center
-    dialog_box = DialogBox(determination_mono, 545, 132, 57, 245)
+    dialog_box = DialogBox(determination_mono, 570, 140, 45, 260)
     oldstate = state
+    choosing = False
     timer = 0
     lines = []
     with open('dialogue.txt') as file:
@@ -374,7 +425,14 @@ def main():
             if event.type == pygame.QUIT:
                 done = True
             if state == 'yourturn':
-                """controls"""
+                if choosing:
+                    if event.type == pygame.KEYDOWN:
+                        if event.key == pygame.K_LEFT:
+                            buttons.choice -= 1
+                            CURSOR.play()
+                        if event.key == pygame.K_RIGHT:
+                            buttons.choice += 1
+                            CURSOR.play()
             if state == 'histurn':
                 if event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_UP:
@@ -421,7 +479,7 @@ def main():
                 if event.key == pygame.K_SPACE:
                     soul.hurting = False
         if state == 'yourturn':
-            battle_box.resize(545, 132)
+            battle_box.resize(570, 140)
             if timer == 20:
                 if turnno == 1:
                     dialog_box.set_text(lines[0])
@@ -457,30 +515,36 @@ def main():
         active_sprite_list.update(battle_box)
         battle_box.draw(screen)
         active_sprite_list.draw(screen)
-        #healthbar.draw(screen)
-        
-        draw_text(screen, "CHARA", info_font, WHITE, 47.5, 375, True)
-        draw_text(screen, "LV 19", info_font, WHITE, 145, 375, True)
-        draw_text(screen, "HP", HPKR_font, WHITE, 230, 378, True)
-        draw_text(screen, "KR", HPKR_font, WHITE, 370, 378, True)
+
+        draw_text(screen, "CHARA", info_font, WHITE, 35, 400, True)
+        draw_text(screen, "LV 19", info_font, WHITE, 135, 400, True)
+        draw_text(screen, "HP", HPKR_font, WHITE, 225, 403, True)
+        draw_text(screen, "KR", HPKR_font, WHITE, 375, 403, True)
         if soul.karma > 0:
-            draw_text(screen, str(soul.health)+" / 92", info_font, MAGENTA, 410, 375, True)
+            draw_text(screen, str(soul.health)+" / 92", info_font, MAGENTA, 415, 400, True)
         else:
-            draw_text(screen, str(soul.health) + " / 92", info_font, WHITE, 410, 375, True)
+            draw_text(screen, str(soul.health) + " / 92", info_font, WHITE, 415, 400, True)
         if not oldstate == state:
             oldstate = state
             if state == 'yourturn':
                 turnno += 1 #only if attack add later
                 if turnno == 1:
                     MEGALOVANIA.play(-1)
-                elif turnno == 13:
-                    MEGALOVANIA.pause()
+                elif turnno == 12:
+                    pygame.mixer.pause()
                     CHOICE.play(-1)
-                elif turnno == 14:
+                elif turnno == 13:
                     CHOICE.stop()
-                    MEGALOVANIA.unpause()
+                    pygame.mixer.unpause()
+                choosing = True
+            soul.up = False
+            soul.down = False
+            soul.left = False
+            soul.right = False
         health.update(soul.healthyhealth, soul.karma)
         health.draw(screen)
+        buttons.update(choosing)
+        buttons.draw(screen)
         truescreen.blit(screen, screenshake(soul.shake))
         clock.tick(30)
         pygame.display.flip()
