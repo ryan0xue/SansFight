@@ -30,6 +30,10 @@ HURT = pygame.mixer.Sound('Sound/PlayerDamaged.ogg')
 CURSOR = pygame.mixer.Sound('Sound/MenuCursor.ogg')
 SELECT = pygame.mixer.Sound('Sound/MenuSelect.ogg')
 
+class Options:
+    def __init__(self):
+        self.items = ["I. Noodles", "Pie", "SnowPiece", "SnowPiece", "SnowPiece", "Steak", "L. Hero", "L. Hero"]
+        
 class Buttons(pygame.sprite.Sprite):
     def __init__(self):
         pygame.sprite.Sprite.__init__(self)
@@ -68,7 +72,6 @@ class Buttons(pygame.sprite.Sprite):
         for i in self.images:
             screen.blit(i, (self.x, self.y))
             self.x += 155
-
 class Bar(pygame.sprite.Sprite):
     def __init__(self, color, length):
         pygame.sprite.Sprite.__init__(self)
@@ -163,7 +166,6 @@ class Soul(pygame.sprite.Sprite):
                         self.rect.x += 5
                     else:
                         self.rect.x -= 5
-
             elif self.soulmode == 'BLUE':
                 self.image = self.blueimg
                 if (self.direction == 1 or self.direction == 3) and not self.right == self.left:
@@ -202,7 +204,6 @@ class Soul(pygame.sprite.Sprite):
                     self.rect.y -= self.velocity
                 elif self.direction == 4:
                     self.rect.x -= self.velocity
-
             if self.direction == 1:
                 self.image = rotate_center(self.image, 0)
             elif self.direction == 2:
@@ -246,8 +247,8 @@ class Soul(pygame.sprite.Sprite):
                 self.height = 0
                 if self.impacting:
                     self.shake = 1
-        else:
-            self.image = self.transparent_img
+        else: #menu choosing
+            self.direction = 1
         if self.karma > 40:
             self.karma = 40
         elif self.karma == 40:
@@ -366,13 +367,13 @@ class DialogBox:
             test_width = self.font.size(test_line)[0]
 
             if test_width > max_width:
-                draw_text(screen, current_line, self.font, WHITE, x, y, True)
+                draw_text(screen, current_line, self.font, WHITE, x, y)
                 y += line_height
                 current_line = word + " "
             else:
                 current_line = test_line
 
-        draw_text(screen, current_line, self.font, WHITE, x, y, True)
+        draw_text(screen, current_line, self.font, WHITE, x, y)
 def rotate_center(image, angle):
     rotated_image = pygame.transform.rotate(image, angle)
     return rotated_image
@@ -383,7 +384,7 @@ info_font = load_font('Mars.ttf', 24)
 HPKR_font = load_font('8-BIT WONDER.TTF', 12)
 sans_font = load_font('pixel-comic-sans-undertale-sans-font.ttf', 12)
 determination_mono = load_font('DeterminationMonoWebRegular-Z5oq.ttf', 32)
-def draw_text(screen, text, font, color, x, y, instant=True):
+def draw_text(screen, text, font, color, x, y):
     text_surface = font.render(text, True, color)
     text_rect = text_surface.get_rect()
     text_rect.topleft = (x, y)
@@ -395,7 +396,6 @@ def screenshake(intensity):
         x = random.randint(-intensity, intensity)
         y = random.randint(-intensity, intensity)
         return (x, y)
-
 def main():
     global state
     truescreen = pygame.display.set_mode([SCREEN_WIDTH, SCREEN_HEIGHT])
@@ -433,6 +433,7 @@ def main():
                         if event.key == pygame.K_RIGHT:
                             buttons.choice += 1
                             CURSOR.play()
+
             if state == 'histurn':
                 if event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_UP:
@@ -452,22 +453,22 @@ def main():
                         soul.left = False
                     elif event.key == pygame.K_RIGHT:
                         soul.right = False
-            if event.type == pygame.KEYDOWN: #temprary
-                if event.key == pygame.K_1:
+            if event.type == pygame.KEYDOWN: #temprary testing
+                if event.key == pygame.K_s:
                     soul.direction = 1
-                elif event.key == pygame.K_2:
+                elif event.key == pygame.K_d:
                     soul.direction = 2
-                elif event.key == pygame.K_3:
+                elif event.key == pygame.K_w:
                     soul.direction = 3
-                elif event.key == pygame.K_4:
+                elif event.key == pygame.K_a:
                     soul.direction = 4
-                elif event.key == pygame.K_5:
-                    soul.soulmode = 'BLUE'
+                elif event.key == pygame.K_1:
+                    if soul.soulmode == 'BLUE':
+                        soul.soulmode = 'RED'
+                    else:
+                        soul.soulmode = 'BLUE'
                     DING.play()
-                elif event.key == pygame.K_6:
-                    soul.soulmode = 'RED'
-                    DING.play()
-                elif event.key == pygame.K_7:
+                elif event.key == pygame.K_RETURN:
                     if state == 'histurn':
                         state = 'yourturn'
                         timer = 0
@@ -505,25 +506,25 @@ def main():
                     dialog_box.set_text(lines[1])
                 else:
                     dialog_box.set_text(lines[random.randint(5, 8)])
-            elif timer > 20:  # After setting text, update and draw it
+            elif timer > 20:  # waited until animation is finished
                 dialog_box.update()
                 dialog_box.draw(screen)
+            #soul follow buttons
+            if choosing:
+                soul.rect.x = 44+155*buttons.choice-155
+                soul.rect.y = 444
             timer += 1
         elif state == 'histurn':
             battle_box.resize(200, 200)
-        battle_box.update()
-        active_sprite_list.update(battle_box)
-        battle_box.draw(screen)
-        active_sprite_list.draw(screen)
 
-        draw_text(screen, "CHARA", info_font, WHITE, 35, 400, True)
-        draw_text(screen, "LV 19", info_font, WHITE, 135, 400, True)
-        draw_text(screen, "HP", HPKR_font, WHITE, 225, 403, True)
-        draw_text(screen, "KR", HPKR_font, WHITE, 375, 403, True)
+        draw_text(screen, "CHARA", info_font, WHITE, 35, 400)
+        draw_text(screen, "LV 19", info_font, WHITE, 135, 400)
+        draw_text(screen, "HP", HPKR_font, WHITE, 225, 403)
+        draw_text(screen, "KR", HPKR_font, WHITE, 375, 403)
         if soul.karma > 0:
-            draw_text(screen, str(soul.health)+" / 92", info_font, MAGENTA, 415, 400, True)
+            draw_text(screen, str(soul.health)+" / 92", info_font, MAGENTA, 415, 400)
         else:
-            draw_text(screen, str(soul.health) + " / 92", info_font, WHITE, 415, 400, True)
+            draw_text(screen, str(soul.health) + " / 92", info_font, WHITE, 415, 400)
         if not oldstate == state:
             oldstate = state
             if state == 'yourturn':
@@ -545,6 +546,11 @@ def main():
         health.draw(screen)
         buttons.update(choosing)
         buttons.draw(screen)
+        battle_box.update()
+        active_sprite_list.update(battle_box)
+        battle_box.draw(screen)
+        active_sprite_list.draw(screen)
+
         truescreen.blit(screen, screenshake(soul.shake))
         clock.tick(30)
         pygame.display.flip()
