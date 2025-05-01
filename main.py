@@ -535,10 +535,10 @@ def load_font(font_path, size):
     return font
 
 
-info_font = load_font('Mars.ttf', 24)
-HPKR_font = load_font('8-BIT WONDER.TTF', 12)
-sans_font = load_font('pixel-comic-sans-undertale-sans-font.ttf', 12)
-determination_mono = load_font('DeterminationMonoWebRegular-Z5oq.ttf', 32)
+info_font = load_font('Fonts/Mars.ttf', 24)
+HPKR_font = load_font('Fonts/8-BIT WONDER.TTF', 12)
+sans_font = load_font('Fonts/pixel-comic-sans-undertale-sans-font.ttf', 12)
+determination_mono = load_font('Fonts/DeterminationMonoWebRegular-Z5oq.ttf', 32)
 
 
 def draw_text(screen, text, font, color, x, y):
@@ -579,7 +579,7 @@ def main():
     choosing = False
     timer = 0
     lines = []
-    with open('dialogue.txt') as file:
+    with open('Text/dialogue.txt') as file:
         for line in file:
             lines.append(line.rstrip())
     while not done:
