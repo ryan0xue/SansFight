@@ -13,7 +13,7 @@ MAGENTA = (255, 0, 255)
 # Dimensions
 SCREEN_WIDTH = 640
 SCREEN_HEIGHT = 480
-state = 'histurn'
+state = 'talk'
 
 pygame.init()
 pygame.mixer.init(frequency=44100, size=-16, channels=2, buffer=2048)
@@ -22,59 +22,91 @@ pygame.font.init()
 SLAM = pygame.mixer.Sound('Sound/Slam.ogg')
 MEGALOVANIA = pygame.mixer.Sound('Sound/MEGALOVANIA.ogg')
 CHOICE = pygame.mixer.Sound('Sound/The_Choice.ogg')
-MEGALOVANIA.set_volume(0.6)
 TEXT = pygame.mixer.Sound('Sound/BattleText.ogg')
+SANSTEXT = pygame.mixer.Sound('Sound/snd_txtsans.wav')
 DING = pygame.mixer.Sound('Sound/Ding.ogg')
 HURT = pygame.mixer.Sound('Sound/PlayerDamaged.ogg')
 CURSOR = pygame.mixer.Sound('Sound/MenuCursor.ogg')
 SELECT = pygame.mixer.Sound('Sound/MenuSelect.ogg')
 SLASH = pygame.mixer.Sound('Sound/snd_laz.wav')
+BIRDS = pygame.mixer.Sound('Sound/mus_birdnoise.ogg')
 
+
+def rotate_center(image, angle):
+    rotated_image = pygame.transform.rotate(image, angle)
+    return rotated_image
+
+
+def load_font(font_path, size):
+    font = pygame.font.Font(font_path, size)
+    return font
+
+
+def draw_text(screen, text, font, color, x, y):
+    text_surface = font.render(text, True, color)
+    text_rect = text_surface.get_rect()
+    text_rect.topleft = (x, y)
+    screen.blit(text_surface, text_rect)
+
+
+def screenshake(intensity):
+    if intensity == 0:
+        return (0, 0)
+    else:
+        x = random.randint(-intensity, intensity)
+        y = random.randint(-intensity, intensity)
+        return (x, y)
+
+info_font = load_font('Fonts/Mars.ttf', 24)
+HPKR_font = load_font('Fonts/8-BIT WONDER.TTF', 12)
+sans_font = load_font('Fonts/pixel-comic-sans-undertale-sans-font.ttf', 16)
+determination_mono = load_font('Fonts/DeterminationMonoWebRegular-Z5oq.ttf', 32)
+damage_font = load_font('Fonts/hachicro.TTF', 32)
 class Options:
     def __init__(self):
-        self.items = ["I. Noodles", "Pie", "SnowPiece", "SnowPiece", "SnowPiece", "Steak", "L. Hero", "L. Hero"]
         self.sequence = ['flavortext']
         self.text = None
-        self.oldtext = self.text
-        self.sigma = 'no'
+        self.oldtext = '*'
+        self.instant = False
         self.soulpos = 0
-
+        self.skip = False
     def update(self, dialog_box, flavortext):
-        if not self.oldtext == self.text:
-            if not self.text == None:
-                if self.sigma == 'yes':
-                    dialog_box.set_text(self.text, False)
-                    self.soulpos = 2
-                else:
-                    dialog_box.set_text(self.text, True)
-                    self.soulpos = 1
-            else:
-                dialog_box.set_text(flavortext, False)
-                self.soulpos = 0
-            self.oldtext = self.text
-        self.sigma = 'no'
+        self.instant = True
         if len(self.sequence) == 1:
-            self.text = None
+            self.text = flavortext
+            self.instant = False
         elif len(self.sequence) == 2:
             if self.sequence[1] == 'sans':
                 self.text = '   * Sans'
             elif self.sequence[1] == 'spare':
                 self.text = '   * Spare'
             elif self.sequence[1] == 'food':
-                self.text = '* You ate the ' + self.items[0] + '.'  #temporary?
-                self.sigma = 'yes'
+                self.text = '* You ate the Butterscotch Pie.   * Your HP was maxed out.'
+                self.instant = False
         elif len(self.sequence) == 3:
             if self.sequence[2] == 'check':
                 self.text = '   * Check'
         elif len(self.sequence) == 4:
             if self.sequence[3] == 'check1':
                 self.text = '* Sans 1 ATK 1 DEF                * The easiest enemy.              * Can only deal 1 damage.'
-                self.sigma = 'yes'
+                self.instant = False
         elif len(self.sequence) == 5:
             if self.sequence[4] == 'check2':
                 self.text = '* Can\'t keep dodging forever.       Keep attacking.'
-                self.sigma = 'yes'
-
+                self.instant = False
+        if self.skip:
+            self.instant = True
+        if not self.oldtext == self.text or self.instant:
+            if not self.text == flavortext:
+                if self.instant and not self.skip:
+                    self.soulpos = 1
+                else:
+                    self.soulpos = 2
+            else:
+                self.soulpos = 0
+            dialog_box.set_text(self.text, self.instant)
+            self.oldtext = self.text
+        self.skip = False
     def z(self, choice, completed):
         if completed:
             if len(self.sequence) == 1:
@@ -105,6 +137,8 @@ class Options:
                 len(self.sequence) >= 4 and 'check1' in self.sequence) or 'food' in self.sequence or 'done' in self.sequence):
             self.sequence.pop()
             SELECT.play()
+        else:
+            self.skip = True
 
 
 class Buttons(pygame.sprite.Sprite):
@@ -379,12 +413,9 @@ class BattleBox(pygame.sprite.Sprite):
         self.target_rect = None
         self.speed = 25
         self.animating = False
-        self.sans = pygame.image.load('tempsans.gif').convert_alpha()
 
     def draw(self, screen):
         pygame.draw.rect(screen, WHITE, self.rect, 5)
-        screen.blit(self.sans, (SCREEN_WIDTH / 2 - 59, self.rect.y - 160))
-
     def resize(self, new_width, new_height):
         self.target_rect = pygame.Rect((640 - new_width) / 2, 390 - new_height, new_width, new_height)
         self.animating = True
@@ -475,7 +506,7 @@ class DialogBox:
         draw_text(screen, current_line, self.font, WHITE, x, y)
 
 
-class SpriteSheet():
+class SpriteSheet:
     def __init__(self, image, width, height):
         self.sheet = image
         self.width = width
@@ -524,39 +555,115 @@ class Slashimation:
         screen.blit(image, (x, y))
 
 
+class SansBubble:
+    def __init__(self, x, y):
+        self.x, self.y = x, y
+        self.rect = pygame.Rect(x, y, 170, 104)
+        self.text = ""
+        self.display_text = ""
+        self.text_index = 0
+        self.text_speed = 1
+        self.active = False
+        self.completed = False
+        self.sound_channel = pygame.mixer.Channel(2)
+        self.image = pygame.image.load('Images/bubble.png').convert_alpha()
 
-def rotate_center(image, angle):
-    rotated_image = pygame.transform.rotate(image, angle)
-    return rotated_image
+    def set_text(self, text):
+        self.text = text
+        self.display_text = ""
+        self.text_index = 0
+        self.active = True
+        self.completed = False
+
+    def update(self):
+        if not self.active:
+            return
+        if self.text_index < len(self.text):
+            self.display_text += self.text[self.text_index]
+            if not self.text[self.text_index].isspace():
+                self.sound_channel.stop()
+                self.sound_channel.play(SANSTEXT)
+            while self.text[self.text_index].isspace():
+                self.text_index += 1
+                self.display_text += self.text[self.text_index]
+            self.text_index += 1
+        else:
+            self.completed = True
+            self.display_text = self.text
+
+    def draw(self, screen):
+        if not self.active:
+            return
+        screen.blit(self.image, (self.x, self.y))
+        x, y = self.rect.x + 35, self.rect.y + 15
+        line_height = sans_font.get_height()
+        max_width = self.rect.width
+        words = self.display_text.split(' ')
+        current_line = ""
+        line_y = y
+        for word in words:
+            test_line = current_line + word + " "
+            test_width = sans_font.size(test_line)[0]
+            if test_width > max_width:
+                draw_text(screen, current_line, sans_font, BLACK, x, line_y)
+                line_y += line_height
+                current_line = word + " "
+            else:
+                current_line = test_line
+        draw_text(screen, current_line, sans_font, BLACK, x, line_y)
 
 
-def load_font(font_path, size):
-    font = pygame.font.Font(font_path, size)
-    return font
-
-
-info_font = load_font('Fonts/Mars.ttf', 24)
-HPKR_font = load_font('Fonts/8-BIT WONDER.TTF', 12)
-sans_font = load_font('Fonts/pixel-comic-sans-undertale-sans-font.ttf', 12)
-determination_mono = load_font('Fonts/DeterminationMonoWebRegular-Z5oq.ttf', 32)
-
-
-def draw_text(screen, text, font, color, x, y):
-    text_surface = font.render(text, True, color)
-    text_rect = text_surface.get_rect()
-    text_rect.topleft = (x, y)
-    screen.blit(text_surface, text_rect)
-
-
-def screenshake(intensity):
-    if intensity == 0:
-        return (0, 0)
-    else:
-        x = random.randint(-intensity, intensity)
-        y = random.randint(-intensity, intensity)
-        return (x, y)
-
-
+class Sans:
+    def __init__(self, battle_box):
+        self.colorkey = (195, 134, 255)
+        self.legs =  pygame.image.load('Images/Legs.png').convert_alpha()
+        self.legs = pygame.transform.scale(self.legs, (88, 46))
+        self.legs.set_colorkey(self.colorkey)
+        self.torso = pygame.image.load('Images/Torso.png').convert_alpha()
+        self.torso = pygame.transform.scale(self.torso, (144, 70))
+        self.torso.set_colorkey(self.colorkey)
+        self.facesimage = pygame.image.load('Spritesheets/Faces.png').convert_alpha()
+        self.facesimage = pygame.transform.scale(self.facesimage, (512, 64))
+        self.facesimage.set_colorkey(self.colorkey)
+        self.faces = SpriteSheet(self.facesimage, 64, 64)
+        self.face = self.faces.get_image(0)
+        self.center = SCREEN_WIDTH / 2
+        self.y = battle_box.rect.y - 160
+        self.xdeviation = 0
+        self.ydeviation = 4
+        self.ychange = 1
+        self.xdirection = 1
+        self.headbob = 0.5
+        self.change = 0
+        self.slash = 0
+    def update(self, face):
+        self.face = self.faces.get_image(face)
+    def draw(self, screen, battle_box):
+        self.y = battle_box.rect.y - 160
+        if self.change == 0:
+            self.change = 2
+            if self.ydeviation == 4:
+                self.ychange = -1
+            elif self.ydeviation == 0:
+                self.ychange = 1
+            self.ydeviation += self.ychange
+            if self.ydeviation == 4: #
+                self.xdeviation = 0
+            elif self.ydeviation == 2: #
+                self.xdeviation = 1
+            elif self.ydeviation == 0: #
+                self.xdeviation = 2
+            if self.xdeviation == 0 and self.ydeviation == 4:
+                self.xdirection *= -1
+            if self.headbob == 0.5:
+                self.headbob = 0
+            else:
+                self.headbob = 0.5
+        else:
+            self.change -= 1
+        screen.blit(self.legs, (self.center - 44 - self.slash, self.y + 100))
+        screen.blit(self.torso, (self.center - self.slash - 72 + self.xdeviation*self.xdirection-2, self.y + 53 - self.ydeviation/2))
+        screen.blit(self.face, (self.center - self.slash - 32 + self.xdeviation*self.xdirection-2, self.y + 5 - self.ydeviation/2 + self.headbob))
 def main():
     global state
     truescreen = pygame.display.set_mode([SCREEN_WIDTH, SCREEN_HEIGHT])
@@ -569,19 +676,33 @@ def main():
     attackcount = 0
     health = Health()
     options = Options()
+    skipped = False
     active_sprite_list = pygame.sprite.Group()
     active_sprite_list.add(soul)
     battle_box = BattleBox(200, 200)
+    sans = Sans(battle_box)
     soul.rect.center = battle_box.rect.center
     dialog_box = DialogBox(determination_mono, 570, 140, 45, 260)
+    BIRDS.play(-1)
+    skippable = False
     oldstate = state
     slashimation = Slashimation()
     choosing = False
     timer = 0
     lines = []
+    facelist = []
+    faceno = 0
     with open('Text/dialogue.txt') as file:
         for line in file:
             lines.append(line.rstrip())
+    with open('Text/sans.txt') as file:
+        content = file.read()
+        sanslines = content.split('split')
+        for line in range(len(sanslines)):
+            sanslines[line] = sanslines[line].rstrip()
+    with open('Text/faces.txt') as file:
+        for line in file:
+            facelist.append(line.rstrip())
     while not done:
         screen.fill(BLACK)
         draw_text(screen, "CHARA", info_font, WHITE, 35, 400)
@@ -592,6 +713,13 @@ def main():
             draw_text(screen, str(soul.health) + " / 92", info_font, MAGENTA, 415, 400)
         else:
             draw_text(screen, str(soul.health) + " / 92", info_font, WHITE, 415, 400)
+        if not oldstate == state: #check for state change
+            oldstate = state
+            timer = 0
+            soul.up = False
+            soul.down = False
+            soul.left = False
+            soul.right = False
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 done = True
@@ -628,6 +756,11 @@ def main():
                         soul.left = False
                     elif event.key == pygame.K_RIGHT:
                         soul.right = False
+            if state == 'talk':
+                if event.type == pygame.KEYDOWN:
+                    if skippable == True:
+                        if event.key == pygame.K_z:
+                            skipped = True
             if event.type == pygame.KEYDOWN:  #debug keys
                 if event.key == pygame.K_s:
                     soul.direction = 1
@@ -646,7 +779,6 @@ def main():
                 elif event.key == pygame.K_RETURN:
                     if state == 'histurn':
                         state = 'yourturn'
-                        timer = 0
                     else:
                         state = 'histurn'
                 elif event.key == pygame.K_SPACE:
@@ -658,16 +790,23 @@ def main():
                     soul.hurting = False
         health.update(soul.healthyhealth, soul.karma)
         health.draw(screen)
+        sans.draw(screen, battle_box)
         buttons.update(choosing)
         buttons.draw(screen)
         battle_box.update()
-        active_sprite_list.update(battle_box)
         battle_box.draw(screen)
-        active_sprite_list.draw(screen)
         if state == 'yourturn':
             battle_box.resize(570, 140)
             if timer == 0:
                 options.sequence = ['flavortext']
+                if attackcount == 12:
+                    print('sparing')
+                    MEGALOVANIA.set_volume(0)
+                    CHOICE.play(-1)
+                elif attackcount == 13:
+                    CHOICE.stop()
+                    MEGALOVANIA.set_volume(0.6)
+                choosing = True
             if timer == 20:
                 options.text = '*'
                 if attackcount == 0:
@@ -701,13 +840,21 @@ def main():
                 dialog_box.draw(screen)
                 if 'done' in options.sequence: #end turn here
                     if buttons.choice == 1: #if attack
-                        if not slashimation.active:
+                        if not slashimation.active and not slashimation.completed:
                             slashimation.start()
+                            starttime = timer
                         slashimation.update()
-                        slashimation.draw(screen, SCREEN_WIDTH/2-13, SCREEN_HEIGHT/2-100)
+                        if slashimation.frame >= 0:
+                            sans.slash = slashimation.frame * 20
+                        slashimation.draw(screen, SCREEN_WIDTH/2-13, SCREEN_HEIGHT/2-150)
                         if slashimation.completed:
-                            state = 'histurn'
-                            attackcount += 1
+                            draw_text(screen, "MISS", damage_font, WHITE, SCREEN_WIDTH/2-64, 50)
+                            if timer-starttime > 30 and sans.slash > 0:
+                                sans.slash -= 10
+                            if sans.slash == 0:
+                                state = 'talk'
+                                attackcount += 1
+                                slashimation.completed = False
                     else:
                         state = 'histurn'
             #soul follow buttons
@@ -728,28 +875,46 @@ def main():
                         soul.image = soul.redimg
                 elif options.soulpos == 2:
                     soul.image = soul.transparent_img
-            timer += 1
         elif state == 'histurn':
-            battle_box.resize(200, 200)
-        if not oldstate == state:
-            oldstate = state
-            if state == 'yourturn':
-                if attackcount == 12:
-                    pygame.mixer.pause()
-                    CHOICE.play(-1)
-                elif attackcount == 13:
-                    CHOICE.stop()
-                    pygame.mixer.unpause()
-                choosing = True
-            else:
-                choosing = False
+            if timer == 0:
+                sans.update(0)
+
                 soul.rect.x = SCREEN_WIDTH / 2 - 8
-                soul.rect.y = SCREEN_HEIGHT
-            soul.up = False
-            soul.down = False
-            soul.left = False
-            soul.right = False
+                soul.rect.y = SCREEN_HEIGHT / 2
+                battle_box.resize(200, 200)
+            if timer > 50:
+                state = 'yourturn'
+        elif state == 'talk':
+            if timer == 0:
+                sansbubble = SansBubble(SCREEN_WIDTH / 2 + 50, sans.y+20)
+                text = sanslines[attackcount]
+                text = text.split('\n')
+                lineno = 0
+                sansbubble.set_text(text[lineno])
+                sans.update(int(facelist[faceno]))
+                faceno+=1
+                choosing = False
+            skippable = False
+            if sansbubble.completed:
+                skippable = True
+                if skipped:
+                    lineno += 1
+                    if lineno < len(text):
+                        sansbubble.set_text(text[lineno])
+                        sans.update(int(facelist[faceno]))
+                        faceno += 1
+                    else:
+                        if attackcount == 0:
+                            BIRDS.stop()
+                        state = 'histurn'
+                    skipped = False
+            sansbubble.update()
+            sansbubble.draw(screen)
+        active_sprite_list.update(battle_box)
+        active_sprite_list.draw(screen)
+
         truescreen.blit(screen, screenshake(soul.shake))
+        timer += 1
         clock.tick(30)
         pygame.display.flip()
     pygame.quit()
