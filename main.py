@@ -10,6 +10,7 @@ WHITE = (255, 255, 255)
 RED = (210, 0, 0)
 YELLOW = (255, 252, 4)
 MAGENTA = (255, 0, 255)
+BLUE = (0, 162, 232)
 # Dimensions
 SCREEN_WIDTH = 640
 SCREEN_HEIGHT = 480
@@ -30,25 +31,20 @@ CURSOR = pygame.mixer.Sound('Sound/MenuCursor.ogg')
 SELECT = pygame.mixer.Sound('Sound/MenuSelect.ogg')
 SLASH = pygame.mixer.Sound('Sound/snd_laz.wav')
 BIRDS = pygame.mixer.Sound('Sound/mus_birdnoise.ogg')
-
+BONESTAB = pygame.mixer.Sound('Sound/BoneStab.ogg')
+ALERT = pygame.mixer.Sound('Sound/Warning.ogg')
 
 def rotate_center(image, angle):
     rotated_image = pygame.transform.rotate(image, angle)
     return rotated_image
-
-
 def load_font(font_path, size):
     font = pygame.font.Font(font_path, size)
     return font
-
-
 def draw_text(screen, text, font, color, x, y):
     text_surface = font.render(text, True, color)
     text_rect = text_surface.get_rect()
     text_rect.topleft = (x, y)
     screen.blit(text_surface, text_rect)
-
-
 def screenshake(intensity):
     if intensity == 0:
         return (0, 0)
@@ -56,7 +52,18 @@ def screenshake(intensity):
         x = random.randint(-intensity, intensity)
         y = random.randint(-intensity, intensity)
         return (x, y)
+def rotatecenter(img, angle):
+    newimg = pygame.transform.rotate(img, angle)
+    old_rect = img.get_rect()
+    new_rect = newimg.get_rect()
+    new_rect.center = old_rect.center
+    return old_rect
+def calculate_movement(angle, speed):
+    radians = math.radians(angle)
+    dx = speed * math.sin(radians)
+    dy = speed * math.cos(radians)
 
+    return dx, dy
 info_font = load_font('Fonts/Mars.ttf', 24)
 HPKR_font = load_font('Fonts/8-BIT WONDER.TTF', 12)
 sans_font = load_font('Fonts/pixel-comic-sans-undertale-sans-font.ttf', 16)
@@ -139,8 +146,6 @@ class Options:
             SELECT.play()
         else:
             self.skip = True
-
-
 class Buttons(pygame.sprite.Sprite):
     def __init__(self):
         pygame.sprite.Sprite.__init__(self)
@@ -181,8 +186,6 @@ class Buttons(pygame.sprite.Sprite):
         for i in self.images:
             screen.blit(i, (self.x, self.y))
             self.x += 155
-
-
 class Bar(pygame.sprite.Sprite):
     def __init__(self, color, length):
         pygame.sprite.Sprite.__init__(self)
@@ -192,8 +195,6 @@ class Bar(pygame.sprite.Sprite):
             self.image = pygame.Surface([1, 21])
         self.image.fill(color)
         self.rect = pygame.draw.rect(self.image, color, self.image.get_rect())
-
-
 class Health(pygame.sprite.Sprite):
     def __init__(self):
         pygame.sprite.Sprite.__init__(self)
@@ -238,8 +239,6 @@ class Health(pygame.sprite.Sprite):
         bar.rect.x = self.x
         bar.rect.y = self.y
         screen.blit(bar.image, bar.rect)
-
-
 class Soul(pygame.sprite.Sprite):
     def __init__(self):
         pygame.sprite.Sprite.__init__(self)
@@ -260,8 +259,8 @@ class Soul(pygame.sprite.Sprite):
         self.transparent_img.fill((0, 0, 0, 0))
         self.accel = 0
         self.velocity = 0
+        self.slam = False
         self.height = 0
-        self.olddirection = self.direction
         self.shake = 0
         self.impacting = False
         self.hurting = False
@@ -349,9 +348,8 @@ class Soul(pygame.sprite.Sprite):
                 self.rect.bottom = battle_box.rect.bottom - 5
                 if self.direction == 1:
                     self.velocity = 0
-
-            if not self.olddirection == self.direction:
-                self.olddirection = self.direction
+            if self.slam:
+                self.slam = False
                 self.velocity = 20
                 self.height = 100000
                 self.impacting = True
@@ -404,8 +402,6 @@ class Soul(pygame.sprite.Sprite):
         else:
             self.karma = 0
         self.health = self.healthyhealth + self.karma
-
-
 class BattleBox(pygame.sprite.Sprite):
     def __init__(self, width, height):
         pygame.sprite.Sprite.__init__(self)
@@ -442,8 +438,6 @@ class BattleBox(pygame.sprite.Sprite):
                     self.rect.width == self.target_rect.width and
                     self.rect.height == self.target_rect.height):
                 self.animating = False
-
-
 class DialogBox:
     def __init__(self, font, width, height, x, y):
         self.font = font
@@ -504,8 +498,6 @@ class DialogBox:
                 current_line = test_line
 
         draw_text(screen, current_line, self.font, WHITE, x, y)
-
-
 class SpriteSheet:
     def __init__(self, image, width, height):
         self.sheet = image
@@ -519,8 +511,6 @@ class SpriteSheet:
 
     def draw(self, screen, frame, x, y):
         screen.blit(self.get_image(frame), (x, y))
-
-
 class Slashimation:
     def __init__(self):
         self.spritesheet = SpriteSheet(pygame.image.load('Spritesheets/slash.png').convert_alpha(), 26, 110)
@@ -553,8 +543,6 @@ class Slashimation:
             return
         image = self.spritesheet.get_image(self.frame)
         screen.blit(image, (x, y))
-
-
 class SansBubble:
     def __init__(self, x, y):
         self.x, self.y = x, y
@@ -611,8 +599,6 @@ class SansBubble:
             else:
                 current_line = test_line
         draw_text(screen, current_line, sans_font, BLACK, x, line_y)
-
-
 class Sans:
     def __init__(self, battle_box):
         self.colorkey = (195, 134, 255)
@@ -641,7 +627,7 @@ class Sans:
     def draw(self, screen, battle_box):
         self.y = battle_box.rect.y - 160
         if self.change == 0:
-            self.change = 2
+            self.change = 1
             if self.ydeviation == 4:
                 self.ychange = -1
             elif self.ydeviation == 0:
@@ -656,6 +642,8 @@ class Sans:
             if self.xdeviation == 0 and self.ydeviation == 4:
                 self.xdirection *= -1
             if self.headbob == 0.5:
+                self.headbob = 1
+            elif self.headbob == 1:
                 self.headbob = 0
             else:
                 self.headbob = 0.5
@@ -664,6 +652,345 @@ class Sans:
         screen.blit(self.legs, (self.center - 44 - self.slash, self.y + 100))
         screen.blit(self.torso, (self.center - self.slash - 72 + self.xdeviation*self.xdirection-2, self.y + 53 - self.ydeviation/2))
         screen.blit(self.face, (self.center - self.slash - 32 + self.xdeviation*self.xdirection-2, self.y + 5 - self.ydeviation/2 + self.headbob))
+class GasterBlaster:
+    def __init__(self, timer, x, y, direction, wait, duration):
+        self.x = int(x)
+        self.y = int(y)
+        self.direction = int(direction)
+        self.wait = int(wait)
+        self.duration = int(duration)
+        self.starttime = timer
+        self.gastersheet = pygame.image.load('Spritesheets/gasterblaster.png').convert_alpha()
+        self.gastersheet = pygame.transform.scale(self.gastersheet, (516, 114))
+        self.gastersheet.set_colorkey((195, 134, 255))
+        self.gasterframe = SpriteSheet(self.gastersheet, 86, 114)
+        self.chargesound = pygame.mixer.Sound("Sound/mus_sfx_segapower.wav")
+        self.blast = pygame.mixer.Sound("Sound/mus_sfx_a_gigatalk.wav")
+        self.channel = pygame.mixer.Channel(3)
+        self.image = self.gasterframe.get_image(0)
+        self.chargesound.play()
+        self.xchange, self.ychange = calculate_movement(self.direction, 15)
+        self.blasting = False
+        self.remove = False
+        self.framecount = 0
+        self.blastimg = pygame.Surface([60, 9999])
+        self.blastimg.fill(WHITE)
+        self.blastimg = rotate_center(self.blastimg, self.direction).convert_alpha()
+    def update(self, timer):
+        if timer-self.starttime > self.wait:
+            if self.framecount == 0:
+                self.image = self.gasterframe.get_image(5)
+                self.framecount = 1
+            elif self.framecount == 1:
+                self.image = self.gasterframe.get_image(4)
+                self.framecount = 0
+            self.x -= self.xchange
+            self.y -= self.ychange
+        elif timer-self.starttime == self.wait:
+            self.channel.stop()
+            self.channel.play(self.blast)
+            self.image = self.gasterframe.get_image(3)
+            self.blasting = True
+        elif timer-self.starttime > self.wait-5:
+            self.image = self.gasterframe.get_image(2)
+        elif timer-self.starttime > self.wait-8:
+            self.image = self.gasterframe.get_image(1)
+        if timer-self.starttime == self.wait+self.duration:
+            self.blasting = False
+            self.remove = True
+    def draw(self, screen):
+        if self.blasting:
+            screen.blit(self.blastimg, (self.x-self.xchange*50, self.y-self.ychange*50))
+        screen.blit(rotate_center(self.image, self.direction), (self.x, self.y))
+class BigGasterBlaster:
+    def __init__(self, timer, x, y, direction, wait, duration):
+        self.x = int(x)
+        self.y = int(y)
+        self.direction = int(direction)
+        self.wait = int(wait)
+        self.duration = int(duration)
+        self.starttime = timer
+        self.gastersheet = pygame.image.load('Spritesheets/gasterblaster.png').convert_alpha()
+        self.gastersheet = pygame.transform.scale(self.gastersheet, (774, 171))
+        self.gastersheet.set_colorkey((195, 134, 255))
+        self.gasterframe = SpriteSheet(self.gastersheet, 129, 171)
+        self.chargesound = pygame.mixer.Sound("Sound/mus_sfx_segapower.wav")
+        self.blast = pygame.mixer.Sound("Sound/mus_sfx_a_gigatalk.wav")
+        self.channel = pygame.mixer.Channel(3)
+        self.image = self.gasterframe.get_image(0)
+        self.chargesound.play()
+        self.xchange, self.ychange = calculate_movement(self.direction, 15)
+        self.blasting = False
+        self.remove = False
+        self.framecount = 0
+        self.blastimg = pygame.Surface([120, 9999])
+        self.blastimg.fill(WHITE)
+        self.blastimg = rotate_center(self.blastimg, self.direction).convert_alpha()
+    def update(self, timer):
+        if timer-self.starttime > self.wait:
+            if self.framecount == 0:
+                self.image = self.gasterframe.get_image(5)
+                self.framecount = 1
+            elif self.framecount == 1:
+                self.image = self.gasterframe.get_image(4)
+                self.framecount = 0
+            self.x -= self.xchange
+            self.y -= self.ychange
+        elif timer-self.starttime == self.wait:
+            self.channel.stop()
+            self.channel.play(self.blast)
+            self.image = self.gasterframe.get_image(3)
+            self.blasting = True
+        elif timer-self.starttime > self.wait-5:
+            self.image = self.gasterframe.get_image(2)
+        elif timer-self.starttime > self.wait-8:
+            self.image = self.gasterframe.get_image(1)
+        if timer-self.starttime == self.wait+self.duration:
+            self.blasting = False
+            self.remove = True
+    def draw(self, screen):
+        if self.blasting:
+            screen.blit(self.blastimg, (self.x-self.xchange*50, self.y-self.ychange*50))
+        screen.blit(rotate_center(self.image, self.direction), (self.x, self.y))
+class SkinnyGasterBlaster:
+    def __init__(self, timer, x, y, direction, wait, duration):
+        self.x = int(x)
+        self.y = int(y)
+        self.direction = int(direction)
+        self.wait = int(wait)
+        self.duration = int(duration)
+        self.starttime = timer
+        self.gastersheet = pygame.image.load('Spritesheets/gasterblaster.png').convert_alpha()
+        self.gastersheet = pygame.transform.scale(self.gastersheet, (258, 114))
+        self.gastersheet.set_colorkey((195, 134, 255))
+        self.gasterframe = SpriteSheet(self.gastersheet, 43, 114)
+        self.chargesound = pygame.mixer.Sound("Sound/mus_sfx_segapower.wav")
+        self.blast = pygame.mixer.Sound("Sound/mus_sfx_a_gigatalk.wav")
+        self.channel = pygame.mixer.Channel(3)
+        self.image = self.gasterframe.get_image(0)
+        self.chargesound.play()
+        self.xchange, self.ychange = calculate_movement(self.direction, 15)
+        self.blasting = False
+        self.remove = False
+        self.framecount = 0
+        self.blastimg = pygame.Surface([40, 9999])
+        self.blastimg.fill(WHITE)
+        self.blastimg = rotate_center(self.blastimg, self.direction).convert_alpha()
+    def update(self, timer):
+        if timer-self.starttime > self.wait:
+            if self.framecount == 0:
+                self.image = self.gasterframe.get_image(5)
+                self.framecount = 1
+            elif self.framecount == 1:
+                self.image = self.gasterframe.get_image(4)
+                self.framecount = 0
+            self.x -= self.xchange
+            self.y -= self.ychange
+        elif timer-self.starttime == self.wait:
+            self.channel.stop()
+            self.channel.play(self.blast)
+            self.image = self.gasterframe.get_image(3)
+            self.blasting = True
+        elif timer-self.starttime > self.wait-5:
+            self.image = self.gasterframe.get_image(2)
+        elif timer-self.starttime > self.wait-8:
+            self.image = self.gasterframe.get_image(1)
+        if timer-self.starttime == self.wait+self.duration:
+            self.blasting = False
+            self.remove = True
+    def draw(self, screen):
+        if self.blasting:
+            screen.blit(self.blastimg, (self.x-self.xchange*50, self.y-self.ychange*50))
+        screen.blit(rotate_center(self.image, self.direction), (self.x, self.y))
+class Bone:
+    def __init__(self, timer, x, y, angle, length, speed, direction, lifespan):
+        self.x = int(x)
+        self.y = int(y)
+        angle = int(angle)
+        length = int(length)
+        self.speed = int(speed)
+        self.direction = int(direction)
+        self.starttime = timer
+        self.lifespan = int(lifespan)
+        self.remove = False
+        self.colorkey = (195, 134, 255)
+        if angle == 0:
+            self.topbone = pygame.image.load('Images/topbone.png').convert_alpha()
+            self.bottombone = pygame.image.load('Images/bottombone.png').convert_alpha()
+            self.centerbone = pygame.image.load('Images/centerbone.png').convert_alpha()
+            self.topbone.set_colorkey(self.colorkey)
+            self.bottombone.set_colorkey(self.colorkey)
+            self.centerbone.set_colorkey(self.colorkey)
+            self.bone = pygame.Surface([10, length], pygame.SRCALPHA)
+            self.bone.blit(self.topbone, (0, 0))
+            self.bone.blit(self.bottombone, (0, length-6))
+            for i in range(length-12):
+                self.bone.blit(self.centerbone, (0, 6+i))
+        elif angle == 1:
+            self.topbone = pygame.image.load('Images/leftbone.png').convert_alpha()
+            self.bottombone = pygame.image.load('Images/rightbone.png').convert_alpha()
+            self.centerbone = pygame.image.load('Images/middlebone2.png').convert_alpha()
+            self.topbone.set_colorkey(self.colorkey)
+            self.bottombone.set_colorkey(self.colorkey)
+            self.centerbone.set_colorkey(self.colorkey)
+            self.bone = pygame.Surface([length, 10], pygame.SRCALPHA)
+            self.bone.blit(self.topbone, (0, 0))
+            self.bone.blit(self.bottombone, (length-6, 0))
+            for i in range(length-12):
+                self.bone.blit(self.centerbone, (6+i, 0))
+    def update(self, timer):
+        if self.direction == 1:
+            self.x += self.speed
+        elif self.direction == 2:
+            self.y += self.speed
+        elif self.direction == 3:
+            self.x -= self.speed
+        elif self.direction == 4:
+            self.y -= self.speed
+        if timer-self.starttime > self.lifespan:
+            self.remove = True
+    def draw(self, screen):
+        screen.blit(self.bone, (self.x, self.y))
+class BlueBone:
+    def __init__(self, timer, x, y, angle, length, speed, direction, lifespan):
+        self.x = int(x)
+        self.y = int(y)
+        self.speed = int(speed)
+        self.direction = int(direction)
+        self.starttime = timer
+        self.lifespan = int(lifespan)
+        angle = int(angle)
+        length = int(length)
+        self.remove = False
+        self.colorkey = (195, 134, 255)
+        if angle == 0:
+            self.topbone = pygame.image.load('Images/bluetopbone.png').convert_alpha()
+            self.bottombone = pygame.image.load('Images/bluebottombone.png').convert_alpha()
+            self.centerbone = pygame.image.load('Images/bluecenterbone.png').convert_alpha()
+            self.topbone.set_colorkey(self.colorkey)
+            self.bottombone.set_colorkey(self.colorkey)
+            self.centerbone.set_colorkey(self.colorkey)
+            self.bone = pygame.Surface([10, length], pygame.SRCALPHA)
+            self.bone.blit(self.topbone, (0, 0))
+            self.bone.blit(self.bottombone, (0, length-6))
+            for i in range(length-12):
+                self.bone.blit(self.centerbone, (0, 6+i))
+        elif angle == 1:
+            self.topbone = pygame.image.load('Images/blueleftbone.png').convert_alpha()
+            self.bottombone = pygame.image.load('Images/bluerightbone.png').convert_alpha()
+            self.centerbone = pygame.image.load('Images/bluemiddlebone2.png').convert_alpha()
+            self.topbone.set_colorkey(self.colorkey)
+            self.bottombone.set_colorkey(self.colorkey)
+            self.centerbone.set_colorkey(self.colorkey)
+            self.bone = pygame.Surface([length, 10], pygame.SRCALPHA)
+            self.bone.blit(self.topbone, (0, 0))
+            self.bone.blit(self.bottombone, (length-6, 0))
+            for i in range(length-12):
+                self.bone.blit(self.centerbone, (6+i, 0))
+    def update(self, timer):
+        if self.direction == 1:
+            self.x += self.speed
+        elif self.direction == 2:
+            self.y += self.speed
+        elif self.direction == 3:
+            self.x -= self.speed
+        elif self.direction == 4:
+            self.y -= self.speed
+        if timer-self.starttime > self.lifespan:
+            self.remove = True
+    def draw(self, screen):
+        screen.blit(self.bone, (self.x, self.y))
+class BoneStab:
+    def __init__(self, timer, battlebox, face, maxheight, warntime, stabtime):
+        self.colorkey = (195, 134, 255)
+        self.maxheight = int(maxheight)
+        self.warntime = int(warntime)
+        self.remove = False
+        self.warninging = False
+        self.stabbing = False
+        self.stabtime = int(stabtime)
+        self.starttime = timer
+        self.boneheight = 0
+        self.face = face
+        self.bbrh = battlebox.rect.height
+        self.bbrw = battlebox.rect.width
+        if face == "up" or face == "down":
+            self.topbone = pygame.image.load('Images/topbone.png').convert_alpha()
+            self.bottombone = pygame.image.load('Images/bottombone.png').convert_alpha()
+            self.centerbone = pygame.image.load('Images/centerbone.png').convert_alpha()
+            self.topbone.set_colorkey(self.colorkey)
+            self.bottombone.set_colorkey(self.colorkey)
+            self.centerbone.set_colorkey(self.colorkey)
+            self.width = battlebox.rect.width
+            self.bones = pygame.Surface([self.width, 12+self.boneheight], pygame.SRCALPHA)
+        if face == "left" or face == "right":
+            self.topbone = pygame.image.load('Images/leftbone.png').convert_alpha()
+            self.bottombone = pygame.image.load('Images/rightbone.png').convert_alpha()
+            self.centerbone = pygame.image.load('Images/middlebone2.png').convert_alpha()
+            self.topbone.set_colorkey(self.colorkey)
+            self.bottombone.set_colorkey(self.colorkey)
+            self.centerbone.set_colorkey(self.colorkey)
+            self.width = battlebox.rect.height
+            self.bones = pygame.Surface([12+self.boneheight, self.width], pygame.SRCALPHA)
+        self.bbx, self.bby = battlebox.rect.x, battlebox.rect.y
+        if face == "up":
+            self.warningrect = pygame.Rect(self.bbx+5, self.bby+5, self.width-10, self.maxheight+12)
+        elif face == "down":
+            self.warningrect = pygame.Rect(self.bbx+5, self.bby-5+self.bbrh-self.maxheight-12, self.width-10, self.maxheight+12)
+        elif face == "left":
+            self.warningrect = pygame.Rect(self.bbx+5, self.bby+5, self.maxheight+12, self.width-10)
+        elif face == "right":
+            self.warningrect = pygame.Rect(self.bbx-5+self.bbrw-self.maxheight-12, self.bby+5, self.maxheight+12, self.width-10)
+    def update(self, timer):
+        if timer - self.starttime > self.stabtime+self.warntime:
+            self.stabbing = False
+            self.remove = True
+        elif timer - self.starttime == self.warntime:
+            BONESTAB.play()
+            self.warninging = False
+            self.stabbing = True
+        elif timer - self.starttime == 0:
+            ALERT.play()
+            self.warninging = True
+        if self.stabbing:
+            if self.face == "up" or self.face == "down":
+                self.bones = pygame.Surface([self.width, 12 + self.boneheight], pygame.SRCALPHA)
+                for bone in range(math.ceil(self.width/10)):
+                    self.bones.blit(self.topbone, (bone*10, 0))
+                    self.bones.blit(self.bottombone, (bone*10, 6+self.boneheight))
+                    for i in range(self.boneheight):
+                        self.bones.blit(self.centerbone, (bone*10, 6+i))
+                if self.boneheight < self.maxheight:
+                    self.boneheight += 10
+                if self.boneheight > self.maxheight:
+                    self.boneheight = self.maxheight
+            elif self.face == "left" or self.face == "right":
+                self.bones = pygame.Surface([12 + self.boneheight, self.width], pygame.SRCALPHA)
+                for bone in range(math.ceil(self.width/10)):
+                    self.bones.blit(self.topbone, (0, bone*10))
+                    self.bones.blit(self.bottombone, (6+self.boneheight, bone*10))
+                    for i in range(self.boneheight):
+                        self.bones.blit(self.centerbone, (6+i, bone*10))
+                if self.boneheight < self.maxheight:
+                    self.boneheight += 10
+                if self.boneheight > self.maxheight:
+                    self.boneheight = self.maxheight
+    def draw(self, screen):
+        if self.warninging:
+            pygame.draw.rect(screen, RED, self.warningrect, 2)
+        elif self.stabbing:
+            if self.face == "up":
+                screen.blit(self.bones, (self.bbx + 5, self.bby + 5))
+            elif self.face == "down":
+                screen.blit(self.bones, (self.bbx + 5, self.bby - 5 + self.bbrh - self.boneheight - 12))
+            elif self.face == "left":
+                screen.blit(self.bones, (self.bbx + 5, self.bby + 5))
+            elif self.face == "right":
+                screen.blit(self.bones, (self.bbx - 5 + self.bbrw - self.boneheight, self.bby + 5))
+
+class Platform:
+    def __init__(self):
+        "do it later"
 def main():
     global state
     truescreen = pygame.display.set_mode([SCREEN_WIDTH, SCREEN_HEIGHT])
@@ -770,17 +1097,6 @@ def main():
                     soul.direction = 3
                 elif event.key == pygame.K_a:
                     soul.direction = 4
-                elif event.key == pygame.K_1:
-                    if soul.soulmode == 'BLUE':
-                        soul.soulmode = 'RED'
-                    else:
-                        soul.soulmode = 'BLUE'
-                    DING.play()
-                elif event.key == pygame.K_RETURN:
-                    if state == 'histurn':
-                        state = 'yourturn'
-                    else:
-                        state = 'histurn'
                 elif event.key == pygame.K_SPACE:
                     soul.hurting = True
                 elif event.key == pygame.K_p:
@@ -876,14 +1192,49 @@ def main():
                 elif options.soulpos == 2:
                     soul.image = soul.transparent_img
         elif state == 'histurn':
-            if timer == 0:
+            if timer == 0:  # sans attack here.
                 sans.update(0)
-
-                soul.rect.x = SCREEN_WIDTH / 2 - 8
-                soul.rect.y = SCREEN_HEIGHT / 2
+                #wtl = ''
                 battle_box.resize(200, 200)
-            if timer > 50:
-                state = 'yourturn'
+                soul.rect.center = battle_box.rect.center
+                attacklist = []
+                if attackcount == 0:
+                    wtl = 'Attacks/Intro'
+                with open(wtl, 'r') as file:
+                    content = file.read().strip().split('\n')
+                    paramlist = [line.split(' ') for line in content]
+            for p in paramlist:  # syntax will be creationtime, attacktype, and then the syntax of the atk.
+                if timer == int(p[0]):
+                    if p[1] == 'GB':
+                        attacklist.append(GasterBlaster(timer, p[2], p[3], p[4], p[5], p[6]))
+                    elif p[1] == 'GBB':
+                        attacklist.append(BigGasterBlaster(timer, p[2], p[3], p[4], p[5], p[6]))
+                    elif p[1] == 'GBS':
+                        attacklist.append(SkinnyGasterBlaster(timer, p[2], p[3], p[4], p[5], p[6]))
+                    elif p[1] == 'B':
+                        attacklist.append(Bone(timer, p[2], p[3], p[4], p[5], p[6], p[7], p[8]))
+                    elif p[1] == 'BB':
+                        attacklist.append(BlueBone(timer, p[2], p[3], p[4], p[5], p[6], p[7], p[8]))
+                    elif p[1] == 'BS':
+                        attacklist.append(BoneStab(timer, battle_box, p[2], p[3], p[4], p[5]))
+                    elif p[1] == 'P':
+                        "finish this"
+                    elif p[1] == 'S':
+                        soul.direction = int(p[2])
+                        soul.slam = True
+                    elif p[1] == 'SM':
+                        soul.soulmode = p[2]
+                        DING.play()
+                    elif p[1] == 'resize':
+                        battle_box.resize(int(p[2]), int(p[3]))
+                    elif p[1] == 'END':
+                        attacklist = []
+                        state = 'yourturn'
+            for i in attacklist:
+                i.update(timer)
+                i.draw(screen)
+                if i.remove:
+                    attacklist.remove(i)
         elif state == 'talk':
             if timer == 0:
                 sansbubble = SansBubble(SCREEN_WIDTH / 2 + 50, sans.y+20)
@@ -891,7 +1242,7 @@ def main():
                 text = text.split('\n')
                 lineno = 0
                 sansbubble.set_text(text[lineno])
-                sans.update(int(facelist[faceno]))
+                sans.update(int(facelist[faceno][0]))
                 faceno+=1
                 choosing = False
             skippable = False
@@ -901,7 +1252,7 @@ def main():
                     lineno += 1
                     if lineno < len(text):
                         sansbubble.set_text(text[lineno])
-                        sans.update(int(facelist[faceno]))
+                        sans.update(int(facelist[faceno][0]))
                         faceno += 1
                     else:
                         if attackcount == 0:
