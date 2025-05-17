@@ -667,15 +667,25 @@ class GasterBlaster:
         self.chargesound = pygame.mixer.Sound("Sound/mus_sfx_segapower.wav")
         self.blast = pygame.mixer.Sound("Sound/mus_sfx_a_gigatalk.wav")
         self.channel = pygame.mixer.Channel(3)
+        if self.direction >= 180:
+            self.blastdirection = self.direction - 180
+        else:
+            self.blastdirection = self.direction
         self.image = self.gasterframe.get_image(0)
         self.chargesound.play()
         self.xchange, self.ychange = calculate_movement(self.direction, 15)
+        self.bxchange, self.bychange = calculate_movement(self.blastdirection, 15)
         self.blasting = False
         self.remove = False
         self.framecount = 0
-        self.blastimg = pygame.Surface([60, 9999])
+        self.blastimg = pygame.Surface([60, 1500])
         self.blastimg.fill(WHITE)
-        self.blastimg = rotate_center(self.blastimg, self.direction).convert_alpha()
+        self.blastimg = rotate_center(self.blastimg, self.blastdirection).convert_alpha()
+        if 90<self.blastdirection<180:
+            self.initialxy = (self.x +47 - abs(self.bxchange * 50), self.y + 47 - abs(self.bychange * 50))
+        else:
+            self.initialxy = (self.x+13-abs(self.bxchange*50), self.y+13-abs(self.bychange*50))
+            print('normal')
     def update(self, timer):
         if timer-self.starttime > self.wait:
             if self.framecount == 0:
@@ -695,12 +705,12 @@ class GasterBlaster:
             self.image = self.gasterframe.get_image(2)
         elif timer-self.starttime > self.wait-8:
             self.image = self.gasterframe.get_image(1)
-        if timer-self.starttime == self.wait+self.duration:
+        if timer-self.starttime >= self.wait+self.duration:
             self.blasting = False
             self.remove = True
     def draw(self, screen):
         if self.blasting:
-            screen.blit(self.blastimg, (self.x-self.xchange*50, self.y-self.ychange*50))
+            screen.blit(self.blastimg, self.initialxy)
         screen.blit(rotate_center(self.image, self.direction), (self.x, self.y))
 class BigGasterBlaster:
     def __init__(self, timer, x, y, direction, wait, duration):
@@ -723,9 +733,10 @@ class BigGasterBlaster:
         self.blasting = False
         self.remove = False
         self.framecount = 0
-        self.blastimg = pygame.Surface([120, 9999])
+        self.blastimg = pygame.Surface([90, 1200])
         self.blastimg.fill(WHITE)
         self.blastimg = rotate_center(self.blastimg, self.direction).convert_alpha()
+        self.initialxy = (self.x-abs(self.xchange*50), self.y-abs(self.ychange*50))
     def update(self, timer):
         if timer-self.starttime > self.wait:
             if self.framecount == 0:
@@ -745,12 +756,12 @@ class BigGasterBlaster:
             self.image = self.gasterframe.get_image(2)
         elif timer-self.starttime > self.wait-8:
             self.image = self.gasterframe.get_image(1)
-        if timer-self.starttime == self.wait+self.duration:
+        if timer-self.starttime >= self.wait+self.duration:
             self.blasting = False
             self.remove = True
     def draw(self, screen):
         if self.blasting:
-            screen.blit(self.blastimg, (self.x-self.xchange*50, self.y-self.ychange*50))
+            screen.blit(self.blastimg, self.initialxy)
         screen.blit(rotate_center(self.image, self.direction), (self.x, self.y))
 class SkinnyGasterBlaster:
     def __init__(self, timer, x, y, direction, wait, duration):
@@ -773,9 +784,10 @@ class SkinnyGasterBlaster:
         self.blasting = False
         self.remove = False
         self.framecount = 0
-        self.blastimg = pygame.Surface([40, 9999])
+        self.blastimg = pygame.Surface([30, 1500])
         self.blastimg.fill(WHITE)
         self.blastimg = rotate_center(self.blastimg, self.direction).convert_alpha()
+        self.initialxy = (self.x-abs(self.xchange*50), self.y-abs(self.ychange*50))
     def update(self, timer):
         if timer-self.starttime > self.wait:
             if self.framecount == 0:
@@ -795,12 +807,12 @@ class SkinnyGasterBlaster:
             self.image = self.gasterframe.get_image(2)
         elif timer-self.starttime > self.wait-8:
             self.image = self.gasterframe.get_image(1)
-        if timer-self.starttime == self.wait+self.duration:
+        if timer-self.starttime >= self.wait+self.duration:
             self.blasting = False
             self.remove = True
     def draw(self, screen):
         if self.blasting:
-            screen.blit(self.blastimg, (self.x-self.xchange*50, self.y-self.ychange*50))
+            screen.blit(self.blastimg, self.initialxy)
         screen.blit(rotate_center(self.image, self.direction), (self.x, self.y))
 class Bone:
     def __init__(self, timer, x, y, angle, length, speed, direction, lifespan):
@@ -987,7 +999,6 @@ class BoneStab:
                 screen.blit(self.bones, (self.bbx + 5, self.bby + 5))
             elif self.face == "right":
                 screen.blit(self.bones, (self.bbx - 5 + self.bbrw - self.boneheight, self.bby + 5))
-
 class Platform:
     def __init__(self):
         "do it later"
@@ -1194,40 +1205,56 @@ def main():
         elif state == 'histurn':
             if timer == 0:  # sans attack here.
                 sans.update(0)
-                #wtl = ''
                 battle_box.resize(200, 200)
                 soul.rect.center = battle_box.rect.center
                 attacklist = []
+
+                # Preprocess attacks
                 if attackcount == 0:
                     wtl = 'Attacks/Intro'
+
+                # Read and parse attacks ONCE
                 with open(wtl, 'r') as file:
-                    content = file.read().strip().split('\n')
-                    paramlist = [line.split(' ') for line in content]
-            for p in paramlist:  # syntax will be creationtime, attacktype, and then the syntax of the atk.
-                if timer == int(p[0]):
-                    if p[1] == 'GB':
-                        attacklist.append(GasterBlaster(timer, p[2], p[3], p[4], p[5], p[6]))
-                    elif p[1] == 'GBB':
-                        attacklist.append(BigGasterBlaster(timer, p[2], p[3], p[4], p[5], p[6]))
-                    elif p[1] == 'GBS':
-                        attacklist.append(SkinnyGasterBlaster(timer, p[2], p[3], p[4], p[5], p[6]))
-                    elif p[1] == 'B':
-                        attacklist.append(Bone(timer, p[2], p[3], p[4], p[5], p[6], p[7], p[8]))
-                    elif p[1] == 'BB':
-                        attacklist.append(BlueBone(timer, p[2], p[3], p[4], p[5], p[6], p[7], p[8]))
-                    elif p[1] == 'BS':
-                        attacklist.append(BoneStab(timer, battle_box, p[2], p[3], p[4], p[5]))
-                    elif p[1] == 'P':
+                    raw_attacks = file.read().strip().split('\n')
+
+                # Precompute attacks
+                precomputed_attacks = []
+                for attack_line in raw_attacks:
+                    p = attack_line.split(' ')
+                    attack_info = {
+                        'time': int(p[0]),
+                        'type': p[1],
+                        'params': p[2:]
+                    }
+                    precomputed_attacks.append(attack_info)
+
+                # Sort attacks by time for potential future optimization
+                precomputed_attacks.sort(key=lambda x: x['time'])
+            for attack in precomputed_attacks:
+                if attack['time'] == timer:
+                    if attack['type'] == 'GB':
+                        attacklist.append(GasterBlaster(timer, *map(int, attack['params'])))
+                    elif attack['type'] == 'GBB':
+                        attacklist.append(BigGasterBlaster(timer, *map(int, attack['params'])))
+                    elif attack['type'] == 'GBS':
+                        attacklist.append(SkinnyGasterBlaster(timer, *map(int, attack['params'])))
+                    elif attack['type'] == 'B':
+                        attacklist.append(Bone(timer, *map(int, attack['params'])))
+                    elif attack['type'] == 'BB':
+                        attacklist.append(BlueBone(timer, *map(int, attack['params'])))
+                    elif attack['type'] == 'BS':
+                        attacklist.append(BoneStab(timer, battle_box, *map(str, attack['params'])))
+                    elif attack['type'] == 'P':
                         "finish this"
-                    elif p[1] == 'S':
-                        soul.direction = int(p[2])
-                        soul.slam = True
-                    elif p[1] == 'SM':
-                        soul.soulmode = p[2]
+                    elif attack['type'] == 'SM':
+                        soul.soulmode = attack['params'][0]
                         DING.play()
-                    elif p[1] == 'resize':
-                        battle_box.resize(int(p[2]), int(p[3]))
-                    elif p[1] == 'END':
+                    elif attack['type'] == 'S':
+                        soul.direction = int(attack['params'][0])
+                        soul.slam = True
+                    elif attack['type'] == 'resize':
+                        battle_box.resize(int(attack['params'][0]), int(attack['params'][1]))
+                    elif attack['type'] == 'END':
                         attacklist = []
                         state = 'yourturn'
             for i in attacklist:
