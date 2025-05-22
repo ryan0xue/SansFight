@@ -7,10 +7,12 @@ import pygame, random, math
 # Colors
 BLACK = (0, 0, 0)
 WHITE = (255, 255, 255)
+FAKEWHITE = (253, 253, 253)
 RED = (210, 0, 0)
 YELLOW = (255, 252, 4)
 MAGENTA = (255, 0, 255)
 BLUE = (0, 162, 232)
+GREEN = (45, 95, 45)
 # Dimensions
 SCREEN_WIDTH = 640
 SCREEN_HEIGHT = 480
@@ -34,6 +36,25 @@ BIRDS = pygame.mixer.Sound('Sound/mus_birdnoise.ogg')
 BONESTAB = pygame.mixer.Sound('Sound/BoneStab.ogg')
 ALERT = pygame.mixer.Sound('Sound/Warning.ogg')
 
+
+def collide(soul_rect, target_surface, color):
+    # Quick rect check first
+    if not soul_rect.colliderect(pygame.Rect(0, 0, 640, 480)):
+        return False
+
+    # Create a mask for efficient collision
+    surface_mask = pygame.mask.from_threshold(
+        target_surface,
+        color,  # Color to detect
+        (1, 1, 1, 255)  # Threshold for color matching
+    )
+
+    # Create a mask for the soul
+    soul_mask = pygame.mask.Mask((10, 10))
+    soul_mask.fill()
+
+    # Check for overlap
+    return surface_mask.overlap(soul_mask, (soul_rect.x+3, soul_rect.y+3)) is not None
 def rotate_center(image, angle):
     rotated_image = pygame.transform.rotate(image, angle)
     return rotated_image
@@ -243,10 +264,12 @@ class Soul(pygame.sprite.Sprite):
     def __init__(self):
         pygame.sprite.Sprite.__init__(self)
         self.soulmode = 'BLUE'
+        self.godmode = False
         self.left = False
         self.right = False
         self.up = False
         self.down = False
+        self.gameover = False
         self.direction = 1
         self.karma = 0
         self.healthyhealth = 92
@@ -265,8 +288,9 @@ class Soul(pygame.sprite.Sprite):
         self.impacting = False
         self.hurting = False
         self.karmaframes = 0
-
-    def update(self, battle_box):
+        self.moving = False
+    def update(self, battle_box, screen, attacklist):
+        self.moving = False
         if state == 'histurn':
             if self.soulmode == 'RED':
                 self.image = self.redimg
@@ -276,32 +300,40 @@ class Soul(pygame.sprite.Sprite):
                 if not self.down == self.up:
                     if self.down:
                         self.rect.y += 5
+                        self.moving = True
                     else:
                         self.rect.y -= 5
+                        self.moving = True
                 if not self.right == self.left:
                     if self.right:
                         self.rect.x += 5
+                        self.moving = True
                     else:
                         self.rect.x -= 5
+                        self.moving = True
             elif self.soulmode == 'BLUE':
                 self.image = self.blueimg
                 if (self.direction == 1 or self.direction == 3) and not self.right == self.left:
                     if self.right:
                         self.rect.x += 5
+                        self.moving = True
                     else:
                         self.rect.x -= 5
+                        self.moving = True
                 if (self.direction == 2 or self.direction == 4) and not self.up == self.down:
                     if self.down:
                         self.rect.y += 5
+                        self.moving = True
                     else:
                         self.rect.y -= 5
-
+                        self.moving = True
                 if ((self.up and self.direction == 1) or (self.left and self.direction == 2) or (
                         self.down and self.direction == 3) or (
                             self.right and self.direction == 4)) and self.height <= 10:
                     self.accel = 0
                     self.velocity = -6
                     self.height += 1
+                    self.moving = True
                 else:
                     self.height = 100000
                     if self.velocity <= -1:
@@ -313,7 +345,6 @@ class Soul(pygame.sprite.Sprite):
                         self.accel = 0.6
                     else:
                         self.accel = 0
-
                 self.velocity += self.accel
                 if self.direction == 1:
                     self.rect.y += self.velocity
@@ -323,6 +354,14 @@ class Soul(pygame.sprite.Sprite):
                     self.rect.y -= self.velocity
                 elif self.direction == 4:
                     self.rect.x -= self.velocity
+                for platform in attacklist:
+                    if isinstance(platform, Platform):
+                        if self.rect.bottom >= platform.whiterect.top and self.rect.bottom <= platform.whiterect.top+10 and self.rect.right > platform.whiterect.left and self.rect.left < platform.whiterect.right:
+                            if not self.up:
+                                self.rect.bottom = platform.whiterect.top
+                                self.velocity = 0
+                                self.height = 0
+                                self.rect.x += platform.speed
             if self.direction == 1:
                 self.image = rotate_center(self.image, 0)
             elif self.direction == 2:
@@ -365,43 +404,49 @@ class Soul(pygame.sprite.Sprite):
                 self.height = 0
                 if self.impacting:
                     self.shake = 1
+            if collide(self.rect, screen, WHITE) or (collide(self.rect, screen, BLUE) and self.moving):
+                self.hurting = True
+            else:
+                self.hurting = False
         else:  #menu choosing
             self.direction = 1
-        if self.karma > 40:
-            self.karma = 40
-        elif self.karma == 40:
-            self.karma -= 1
-            self.karmaframes = 0
-        elif 30 <= self.karma < 40:
-            if self.karmaframes >= 2:
+        if not self.godmode:
+            if self.karma > 40:
+                self.karma = 40
+            elif self.karma == 40:
                 self.karma -= 1
                 self.karmaframes = 0
-        elif 20 <= self.karma < 30:
-            if self.karmaframes >= 5:
-                self.karma -= 1
-                self.karmaframes = 0
-        elif 10 <= self.karma < 20:
-            if self.karmaframes >= 15:
-                self.karma -= 1
-                self.karmaframes = 0
-        elif 1 <= self.karma < 10:
-            if self.karmaframes >= 30:
-                self.karma -= 1
-                self.karmaframes = 0
-        if self.karma > 0:
-            self.karmaframes += 1
-        if self.health > 1:
-            if self.hurting:
-                HURT.stop()
-                HURT.play()
-                if self.healthyhealth == 1:
+            elif 30 <= self.karma < 40:
+                if self.karmaframes >= 2:
                     self.karma -= 1
-                else:
-                    self.karma += 5  #for now
-                    self.healthyhealth = self.health - self.karma - 1
-        else:
-            self.karma = 0
-        self.health = self.healthyhealth + self.karma
+                    self.karmaframes = 0
+            elif 20 <= self.karma < 30:
+                if self.karmaframes >= 5:
+                    self.karma -= 1
+                    self.karmaframes = 0
+            elif 10 <= self.karma < 20:
+                if self.karmaframes >= 15:
+                    self.karma -= 1
+                    self.karmaframes = 0
+            elif 1 <= self.karma < 10:
+                if self.karmaframes >= 30:
+                    self.karma -= 1
+                    self.karmaframes = 0
+            if self.karma > 0:
+                self.karmaframes += 1
+            if self.health >= 1:
+                if self.hurting:
+                    HURT.stop()
+                    HURT.play()
+                    if self.healthyhealth <= 1:
+                        self.karma -= 1
+                        self.healthyhealth = 1
+                    else:
+                        self.karma += 4
+                        self.healthyhealth = self.health - self.karma - 1
+            self.health = self.healthyhealth + self.karma
+            if self.health <= 0:
+                self.gameover = True
 class BattleBox(pygame.sprite.Sprite):
     def __init__(self, width, height):
         pygame.sprite.Sprite.__init__(self)
@@ -679,13 +724,15 @@ class GasterBlaster:
         self.remove = False
         self.framecount = 0
         self.blastimg = pygame.Surface([60, 1500])
+        self.bwidth = 60
+        self.bwchange = -5
         self.blastimg.fill(WHITE)
         self.blastimg = rotate_center(self.blastimg, self.blastdirection).convert_alpha()
         if 90<self.blastdirection<180:
-            self.initialxy = (self.x +47 - abs(self.bxchange * 50), self.y + 47 - abs(self.bychange * 50))
+            self.blastxy = (self.x + 47 - abs(self.bxchange * 50), self.y + 47 - abs(self.bychange * 50))
         else:
-            self.initialxy = (self.x+13-abs(self.bxchange*50), self.y+13-abs(self.bychange*50))
-            print('normal')
+            self.blastxy = (self.x + 13 - abs(self.bxchange * 50), self.y + 13 - abs(self.bychange * 50))
+        self.ix, self.iy = self.x, self.y
     def update(self, timer):
         if timer-self.starttime > self.wait:
             if self.framecount == 0:
@@ -710,7 +757,19 @@ class GasterBlaster:
             self.remove = True
     def draw(self, screen):
         if self.blasting:
-            screen.blit(self.blastimg, self.initialxy)
+            if self.bwidth > 60:
+                self.bwchange = -5
+            elif self.bwidth < 45:
+                self.bwchange = 5
+            self.bwidth += self.bwchange
+            self.blastimg = pygame.Surface([self.bwidth, 1500])
+            self.blastimg.fill(WHITE)
+            self.blastimg = rotate_center(self.blastimg, self.blastdirection).convert_alpha()
+            if 90 < self.blastdirection < 180:
+                self.blastxy = (self.ix + (86 - self.bwidth) / 2 - abs(self.bxchange * 50)+34, self.iy + (86 - self.bwidth) / 2 - abs(self.bychange * 50)+34)
+            else:
+                self.blastxy = (self.ix + (86 - self.bwidth) / 2 - abs(self.bxchange * 50), self.iy + (86 - self.bwidth) / 2 - abs(self.bychange * 50))
+            screen.blit(self.blastimg, self.blastxy)
         screen.blit(rotate_center(self.image, self.direction), (self.x, self.y))
 class BigGasterBlaster:
     def __init__(self, timer, x, y, direction, wait, duration):
@@ -727,16 +786,27 @@ class BigGasterBlaster:
         self.chargesound = pygame.mixer.Sound("Sound/mus_sfx_segapower.wav")
         self.blast = pygame.mixer.Sound("Sound/mus_sfx_a_gigatalk.wav")
         self.channel = pygame.mixer.Channel(3)
+        if self.direction >= 180:
+            self.blastdirection = self.direction - 180
+        else:
+            self.blastdirection = self.direction
         self.image = self.gasterframe.get_image(0)
         self.chargesound.play()
         self.xchange, self.ychange = calculate_movement(self.direction, 15)
+        self.bxchange, self.bychange = calculate_movement(self.blastdirection, 15)
         self.blasting = False
         self.remove = False
         self.framecount = 0
-        self.blastimg = pygame.Surface([90, 1200])
+        self.blastimg = pygame.Surface([90, 1500])
+        self.bwidth = 90
+        self.bwchange = -7.5
         self.blastimg.fill(WHITE)
-        self.blastimg = rotate_center(self.blastimg, self.direction).convert_alpha()
-        self.initialxy = (self.x-abs(self.xchange*50), self.y-abs(self.ychange*50))
+        self.blastimg = rotate_center(self.blastimg, self.blastdirection).convert_alpha()
+        if 90<self.blastdirection<180:
+            self.blastxy = (self.x + 47 - abs(self.bxchange * 50), self.y + 47 - abs(self.bychange * 50))
+        else:
+            self.blastxy = (self.x + 13 - abs(self.bxchange * 50), self.y + 13 - abs(self.bychange * 50))
+        self.ix, self.iy = self.x, self.y
     def update(self, timer):
         if timer-self.starttime > self.wait:
             if self.framecount == 0:
@@ -761,7 +831,19 @@ class BigGasterBlaster:
             self.remove = True
     def draw(self, screen):
         if self.blasting:
-            screen.blit(self.blastimg, self.initialxy)
+            if self.bwidth > 90:
+                self.bwchange = -7.5
+            elif self.bwidth < 67.5:
+                self.bwchange = 7.5
+            self.bwidth += self.bwchange
+            self.blastimg = pygame.Surface([self.bwidth, 1500])
+            self.blastimg.fill(WHITE)
+            self.blastimg = rotate_center(self.blastimg, self.blastdirection).convert_alpha()
+            if 90 < self.blastdirection < 180:
+                self.blastxy = (self.ix + (129 - self.bwidth) / 2 - abs(self.bxchange * 50)+51, self.iy + (129 - self.bwidth) / 2 - abs(self.bychange * 50)+51)
+            else:
+                self.blastxy = (self.ix + (129 - self.bwidth) / 2 - abs(self.bxchange * 50), self.iy + (129 - self.bwidth) / 2 - abs(self.bychange * 50))
+            screen.blit(self.blastimg, self.blastxy)
         screen.blit(rotate_center(self.image, self.direction), (self.x, self.y))
 class SkinnyGasterBlaster:
     def __init__(self, timer, x, y, direction, wait, duration):
@@ -778,16 +860,27 @@ class SkinnyGasterBlaster:
         self.chargesound = pygame.mixer.Sound("Sound/mus_sfx_segapower.wav")
         self.blast = pygame.mixer.Sound("Sound/mus_sfx_a_gigatalk.wav")
         self.channel = pygame.mixer.Channel(3)
+        if self.direction >= 180:
+            self.blastdirection = self.direction - 180
+        else:
+            self.blastdirection = self.direction
         self.image = self.gasterframe.get_image(0)
         self.chargesound.play()
         self.xchange, self.ychange = calculate_movement(self.direction, 15)
+        self.bxchange, self.bychange = calculate_movement(self.blastdirection, 15)
         self.blasting = False
         self.remove = False
         self.framecount = 0
         self.blastimg = pygame.Surface([30, 1500])
+        self.bwidth = 30
+        self.bwchange = -2.5
         self.blastimg.fill(WHITE)
-        self.blastimg = rotate_center(self.blastimg, self.direction).convert_alpha()
-        self.initialxy = (self.x-abs(self.xchange*50), self.y-abs(self.ychange*50))
+        self.blastimg = rotate_center(self.blastimg, self.blastdirection).convert_alpha()
+        if 90<self.blastdirection<180:
+            self.blastxy = (self.x + 47 - abs(self.bxchange * 50), self.y + 47 - abs(self.bychange * 50))
+        else:
+            self.blastxy = (self.x + 13 - abs(self.bxchange * 50), self.y + 13 - abs(self.bychange * 50))
+        self.ix, self.iy = self.x, self.y
     def update(self, timer):
         if timer-self.starttime > self.wait:
             if self.framecount == 0:
@@ -812,7 +905,19 @@ class SkinnyGasterBlaster:
             self.remove = True
     def draw(self, screen):
         if self.blasting:
-            screen.blit(self.blastimg, self.initialxy)
+            if self.bwidth > 30:
+                self.bwchange = -2.5
+            elif self.bwidth < 22.5:
+                self.bwchange = 2.5
+            self.bwidth += self.bwchange
+            self.blastimg = pygame.Surface([self.bwidth, 1500])
+            self.blastimg.fill(WHITE)
+            self.blastimg = rotate_center(self.blastimg, self.blastdirection).convert_alpha()
+            if 90 < self.blastdirection < 180:
+                self.blastxy = (self.ix + (43 - self.bwidth) / 2 - abs(self.bxchange * 50)+17, self.iy + (43 - self.bwidth) / 2 - abs(self.bychange * 50)+17)
+            else:
+                self.blastxy = (self.ix + (43 - self.bwidth) / 2 - abs(self.bxchange * 50), self.iy + (43 - self.bwidth) / 2 - abs(self.bychange * 50))
+            screen.blit(self.blastimg, self.blastxy)
         screen.blit(rotate_center(self.image, self.direction), (self.x, self.y))
 class Bone:
     def __init__(self, timer, x, y, angle, length, speed, direction, lifespan):
@@ -967,7 +1072,7 @@ class BoneStab:
         if self.stabbing:
             if self.face == "up" or self.face == "down":
                 self.bones = pygame.Surface([self.width, 12 + self.boneheight], pygame.SRCALPHA)
-                for bone in range(math.ceil(self.width/10)):
+                for bone in range(math.floor(self.width/10)):
                     self.bones.blit(self.topbone, (bone*10, 0))
                     self.bones.blit(self.bottombone, (bone*10, 6+self.boneheight))
                     for i in range(self.boneheight):
@@ -1000,10 +1105,27 @@ class BoneStab:
             elif self.face == "right":
                 screen.blit(self.bones, (self.bbx - 5 + self.bbrw - self.boneheight, self.bby + 5))
 class Platform:
-    def __init__(self):
-        "do it later"
+    def __init__(self, timer, x, y, width, speed, life):
+        self.starttime = timer
+        self.x, self.y = int(x), int(y)
+        self.speed = int(speed)
+        self.life = int(life)
+        self.width = int(width)
+        self.greenrect = pygame.Rect(self.x, self.y, self.width, 6)
+        self.whiterect = pygame.Rect(self.x, self.y+4, self.width, 6)
+        self.remove = False
+    def update(self, timer):
+        if timer - self.starttime > self.life:
+            self.remove = True
+        self.x += self.speed
+    def draw(self, screen):
+        self.greenrect = pygame.Rect(self.x, self.y, self.width, 6)
+        self.whiterect = pygame.Rect(self.x, self.y + 4, self.width, 6)
+        pygame.draw.rect(screen, FAKEWHITE, self.whiterect, 1)
+        pygame.draw.rect(screen, GREEN, self.greenrect, 1)
 def main():
     global state
+    attacklist = []
     truescreen = pygame.display.set_mode([SCREEN_WIDTH, SCREEN_HEIGHT])
     screen = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
     pygame.display.set_caption("UNDERTALE")
@@ -1075,6 +1197,8 @@ def main():
                             options.z(buttons.choice, dialog_box.completed)
                         if event.key == pygame.K_x:
                             options.x()
+                if 'food' in options.sequence:
+                    soul.healthyhealth = 92 - soul.karma
             if state == 'histurn':
                 if event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_UP:
@@ -1099,22 +1223,11 @@ def main():
                     if skippable == True:
                         if event.key == pygame.K_z:
                             skipped = True
-            if event.type == pygame.KEYDOWN:  #debug keys
-                if event.key == pygame.K_s:
-                    soul.direction = 1
-                elif event.key == pygame.K_d:
-                    soul.direction = 2
-                elif event.key == pygame.K_w:
-                    soul.direction = 3
-                elif event.key == pygame.K_a:
-                    soul.direction = 4
-                elif event.key == pygame.K_SPACE:
-                    soul.hurting = True
-                elif event.key == pygame.K_p:
-                    print(pygame.mouse.get_pos())
-            if event.type == pygame.KEYUP:
-                if event.key == pygame.K_SPACE:
-                    soul.hurting = False
+            if event.type == pygame.KEYDOWN:  #hacks!
+                if event.key == pygame.K_p:
+                    soul.godmode = True
+                if event.key == pygame.K_f:
+                    pygame.display.toggle_fullscreen()
         health.update(soul.healthyhealth, soul.karma)
         health.draw(screen)
         sans.draw(screen, battle_box)
@@ -1126,13 +1239,6 @@ def main():
             battle_box.resize(570, 140)
             if timer == 0:
                 options.sequence = ['flavortext']
-                if attackcount == 12:
-                    print('sparing')
-                    MEGALOVANIA.set_volume(0)
-                    CHOICE.play(-1)
-                elif attackcount == 13:
-                    CHOICE.stop()
-                    MEGALOVANIA.set_volume(0.6)
                 choosing = True
             if timer == 20:
                 options.text = '*'
@@ -1207,17 +1313,42 @@ def main():
                 sans.update(0)
                 battle_box.resize(200, 200)
                 soul.rect.center = battle_box.rect.center
+                soul.direction = 1
                 attacklist = []
-
-                # Preprocess attacks
                 if attackcount == 0:
-                    wtl = 'Attacks/Intro'
-
-                # Read and parse attacks ONCE
-                with open(wtl, 'r') as file:
+                    wtl = 'Intro'
+                elif attackcount == 1:
+                    wtl = 'bonegap1'
+                elif attackcount == 2:
+                    wtl = 'bluebone'
+                elif attackcount == 3:
+                    wtl = 'bonegap2'
+                elif attackcount == 4:
+                    wtl = 'platforms1'
+                elif attackcount == 5:
+                    wtl = 'platforms2'
+                elif attackcount == 6:
+                    wtl = 'platforms3'
+                elif attackcount == 7:
+                    wtl = 'platforms4'
+                elif attackcount == 8:
+                    wtl = 'boneslideh'
+                elif attackcount == 9:
+                    wtl = 'platformblaster'
+                elif attackcount <= 13:
+                    wtl = random.choice(['bonegap1fast', 'bonegap2', 'boneslideh', 'platformblasterfast', 'platforms4hard'])
+                elif attackcount == 14:
+                    wtl = 'bonestab1'
+                elif attackcount == 15:
+                    wtl = 'boneslidev'
+                elif attackcount < 24:
+                    wtl = random.choice(['bonegap1fast', 'bonegap2', 'boneslideh', 'platformblasterfast', 'platforms4hard', 'boneslidev', 'bonestab2', 'bonestab3'])
+                elif attackcount == 24:
+                    wtl = 'Spare'
+                if 'spare' in options.sequence:
+                    wtl = 'Spare'
+                with open('Attacks/' + wtl, 'r') as file:
                     raw_attacks = file.read().strip().split('\n')
-
-                # Precompute attacks
                 precomputed_attacks = []
                 for attack_line in raw_attacks:
                     p = attack_line.split(' ')
@@ -1227,8 +1358,6 @@ def main():
                         'params': p[2:]
                     }
                     precomputed_attacks.append(attack_info)
-
-                # Sort attacks by time for potential future optimization
                 precomputed_attacks.sort(key=lambda x: x['time'])
             for attack in precomputed_attacks:
                 if attack['time'] == timer:
@@ -1245,15 +1374,18 @@ def main():
                     elif attack['type'] == 'BS':
                         attacklist.append(BoneStab(timer, battle_box, *map(str, attack['params'])))
                     elif attack['type'] == 'P':
-                        "finish this"
+                        attacklist.append(Platform(timer, *map(str, attack['params'])))
                     elif attack['type'] == 'SM':
-                        soul.soulmode = attack['params'][0]
-                        DING.play()
+                        if not soul.soulmode == attack['params'][0]:
+                            DING.play()
+                            soul.soulmode = attack['params'][0]
                     elif attack['type'] == 'S':
                         soul.direction = int(attack['params'][0])
                         soul.slam = True
                     elif attack['type'] == 'resize':
                         battle_box.resize(int(attack['params'][0]), int(attack['params'][1]))
+                    elif attack['type'] == 'TP':
+                        soul.rect.x, soul.rect.y = int(attack['params'][0]), int(attack['params'][1])
                     elif attack['type'] == 'END':
                         attacklist = []
                         state = 'yourturn'
@@ -1288,8 +1420,10 @@ def main():
                     skipped = False
             sansbubble.update()
             sansbubble.draw(screen)
-        active_sprite_list.update(battle_box)
+        active_sprite_list.update(battle_box, screen, attacklist)
         active_sprite_list.draw(screen)
+        if soul.gameover:
+            done = True
 
         truescreen.blit(screen, screenshake(soul.shake))
         timer += 1

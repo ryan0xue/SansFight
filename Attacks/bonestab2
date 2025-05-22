@@ -1,0 +1,19 @@
+0 resize 165 165
+0 SM BLUE
+5 S 4
+5 BS left 50 20 20
+35 S 2
+35 BS right 50 20 20
+65 S 3
+65 BS up 50 20 20
+95 S 1
+95 BS down 50 20 20
+125 S 2
+125 BS right 50 20 20
+155 S 3
+155 BS up 50 20 20
+185 S 1
+185 BS down 50 20 20
+215 S 2
+215 BS right 50 20 10
+250 END
