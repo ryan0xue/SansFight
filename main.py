@@ -1349,8 +1349,10 @@ def main():
                     wtl = random.choice(['bonegap1fast', 'bonegap2', 'boneslideh', 'platformblasterfast', 'platforms4hard', 'boneslidev', 'bonestab2', 'bonestab3'])
                 elif attackcount == 24:
                     wtl = 'Spare'
+                    soul.godmode = False
                 if 'spare' in options.sequence:
                     wtl = 'Spare'
+                    soul.godmode = False
                 with open('Attacks/' + wtl, 'r') as file:
                     raw_attacks = file.read().strip().split('\n')
                 precomputed_attacks = []
