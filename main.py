@@ -1225,10 +1225,10 @@ def main():
                             skipped = True
             if event.type == pygame.KEYDOWN:  #hacks!
                 if event.key == pygame.K_p:
-                    if soul.godmode:
-                        soul.godemode = False
-                    else:
-                        soul.godemode = True
+                    if soul.godmode == True:
+                        soul.godmode = False
+                    elif soul.godmode == False:
+                        soul.godmode = True
                     DING.play()
                 if event.key == pygame.K_f:
                     pygame.display.toggle_fullscreen()
